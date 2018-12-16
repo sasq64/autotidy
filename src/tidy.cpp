@@ -169,6 +169,7 @@ void handleError(const Error& e)
         applyReplacement(r, fmt::format(".patchedFile{}", i));
         system(fmt::format("diff -u3 --color {} .patchedFile{}", r.path, i)
                    .c_str());
+        i++;
     }
 
     fmt::print(fmt::fg(fmt::color::cyan),
