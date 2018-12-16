@@ -1,8 +1,8 @@
 
+#include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_split.h>
-#include <absl/strings/ascii.h>
 
 #include <fmt/color.h>
 #include <fmt/format.h>
@@ -55,6 +55,18 @@ std::string currentDir()
     return std::string(&buf[0]);
 }
 
+struct Replacement
+{
+    Replacement(std::string aPath, size_t aOffset, size_t aLength,
+                std::string aText)
+        : path(aPath), offset(aOffset), length(aLength), text(aText)
+    {}
+    std::string path;
+    size_t offset;
+    size_t length;
+    std::string text;
+};
+
 struct Error
 {
     Error() = default;
@@ -69,6 +81,7 @@ struct Error
     std::string fileName;
     std::string error;
     std::string text;
+    std::vector<Replacement> replacements;
 };
 
 std::set<std::string> ignores;
@@ -92,7 +105,7 @@ void saveConfig()
 
 void handleError(const Error& e)
 {
-    if (ignores.count(e.check) > 0) {
+    if (ignores.count(e.check) > 0 || e.fileName == "") {
         return;
     }
 
@@ -106,6 +119,10 @@ void handleError(const Error& e)
     fmt::print(fmt::fg(fmt::color::light_pink), " [{}]", e.check);
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
     std::puts(e.text.c_str());
+
+    if(e.replacements.size() > 0) {
+        fmt::print(fmt::fg(fmt::color::coral), "Fix available\n");
+    }
 
     fmt::print(fmt::fg(fmt::color::cyan),
                "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
@@ -140,8 +157,10 @@ int main(int argc, char** argv)
     app.add_option("log", filename, "clang-tidy output file")->required();
     app.add_option("-c,--clang-tidy-config", configFileName,
                    "clang-tidy config file", true);
-    app.add_option("-e,--edit-command", editCommand, "Command to use for editing file", true);
-    app.add_option("-f,--fixes-file", fixesFile, "Exported fixes from clang-tidy");
+    app.add_option("-e,--edit-command", editCommand,
+                   "Command to use for editing file", true);
+    app.add_option("-f,--fixes-file", fixesFile,
+                   "Exported fixes from clang-tidy");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -172,13 +191,13 @@ int main(int argc, char** argv)
         confLines.push_back(line);
     }
 
-    std::regex errline{R"(([^:]+):(\d+):(\d+):\s*(\w+):\s*(.*)\[(.*)\])"};
+    std::regex errline{R"((([^:]+):(\d+):(\d+):)?\s*(\w+):\s*(.*)\[(.*)\])"};
 
     std::cmatch currentMatch;
     std::vector<std::string> text;
     Error error;
     std::vector<Error> errorList;
-    std::ifstream logFile(argv[1]);
+    std::ifstream logFile(filename);
     while (std::getline(logFile, line)) {
         if (std::regex_match(line.c_str(), currentMatch, errline)) {
 
@@ -193,26 +212,33 @@ int main(int argc, char** argv)
             }
             text.clear();
 
-            error = {currentMatch[6], std::stoi(currentMatch[2].str()),
-                     std::stoi(currentMatch[3].str()), currentMatch[1],
-                     currentMatch[5]};
+            error = {currentMatch[7], std::atoi(currentMatch[3].str().c_str()),
+                     std::atoi(currentMatch[4].str().c_str()), currentMatch[2],
+                     currentMatch[6]};
         } else {
             text.push_back(line);
         }
     }
+    if (error.error != "") {
+        errorList.push_back(error);
+        errorList.back().text = absl::StrJoin(text, "\n");
+    }
 
-    if(fixesFile != "") {
+    if (fixesFile != "") {
         YAML::Node fixes = YAML::LoadFile(fixesFile);
-        int i=0;
-        for(auto const& d : fixes["Diagnostics"]) {
-            fmt::print("{} vs {}\n", d["DiagnosticName"].as<std::string>(), errorList[i].check);
+        size_t i = 0;
+        for (auto const& d : fixes["Diagnostics"]) {
+            for (auto const& r : d["Replacements"]) {
+                errorList[i].replacements.emplace_back(
+                    r["FilePath"].as<std::string>(), r["Offset"].as<int>(),
+                    r["Length"].as<int>(),
+                    r["ReplacementText"].as<std::string>());
+            }
             i++;
         }
     }
 
-    for(auto const& e : errorList) {
+    for (auto const& e : errorList) {
         handleError(e);
     }
-
-
 }
