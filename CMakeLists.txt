@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(autotidy)
+project(autotidy LANGUAGES CXX)
 
 # Global project settings
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
