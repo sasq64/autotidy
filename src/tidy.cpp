@@ -166,9 +166,10 @@ class Replacer {
     }
 };
 
-void handleError(const Error& e) {
+bool handleError(const Error& e)
+{
     if (ignores.count(e.check) > 0 || e.fileName == "") {
-        return;
+        return true;
     }
 
     auto fn = e.fileName;
@@ -195,12 +196,16 @@ void handleError(const Error& e) {
     }
 
     fmt::print(fmt::fg(fmt::color::cyan),
-               "[e]dit, [f]ix, [i]gnore, [s]kip, [n/N]olint ? ");
+               "[e]dit, [f]ix, [i]gnore, [n/N]olint, [s]kip (Enter), [A]bort ? ");
     std::fflush(stdout);
 
     auto c = getch();
     std::puts("");
     switch (c) {
+        case 'A':
+            return false;
+        case 's':
+            return true;
         case 'f':
             for (size_t i = 0; i < e.replacements.size(); i++) {
                 copyFile(e.replacements[i].path,
@@ -229,6 +234,8 @@ void handleError(const Error& e) {
     for (size_t i = 0; i < replacer.getFiles().size(); i++) {
         std::remove(fmt::format(".patchedFile{}", i).c_str());
     }
+
+    return true;
 }
 int main(int argc, char** argv) {
     CLI::App app{"autotidy"};
@@ -332,6 +339,7 @@ int main(int argc, char** argv) {
     }
 
     for (auto const& e : errorList) {
-        handleError(e);
+        if (!handleError(e))
+            break;
     }
 }
