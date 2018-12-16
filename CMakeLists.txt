@@ -40,8 +40,9 @@ endif()
 # External dependencies
 add_subdirectory(external/fmt)
 add_subdirectory(external/abseil-cpp)
+add_subdirectory(external/CLI11)
 
 add_executable(tidy src/tidy.cpp)
 target_compile_options(tidy PRIVATE ${WARNINGS})
 target_include_directories(tidy PRIVATE external)
-target_link_libraries(tidy PRIVATE fmt absl::strings)
+target_link_libraries(tidy PRIVATE fmt absl::strings CLI11)

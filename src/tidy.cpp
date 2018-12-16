@@ -6,36 +6,41 @@
 #include <fmt/color.h>
 #include <fmt/format.h>
 
+#include <CLI/CLI.hpp>
+
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <regex>
 #include <set>
+#include <stdexcept>
 #include <termios.h>
 #include <unistd.h>
 
-char getch()
+using namespace std::string_literals;
+
+static char getch()
 {
     char buf = 0;
     struct termios old
     {};
     if (tcgetattr(0, &old) < 0) {
-        perror("tcsetattr()");
+        throw new std::runtime_error("tcsetattr()");
     }
     old.c_lflag &= ~ICANON;
     old.c_lflag &= ~ECHO;
     old.c_cc[VMIN] = 1;
     old.c_cc[VTIME] = 0;
     if (tcsetattr(0, TCSANOW, &old) < 0) {
-        perror("tcsetattr ICANON");
+        throw new std::runtime_error("tcsetattr ICANON");
     }
     if (read(0, &buf, 1) < 0) {
-        perror("read()");
+        throw new std::runtime_error("read()");
     }
     old.c_lflag |= ICANON;
     old.c_lflag |= ECHO;
     if (tcsetattr(0, TCSADRAIN, &old) < 0) {
-        perror("tcsetattr ~ICANON");
+        throw new std::runtime_error("tcsetattr ~ICANON");
     }
     return (buf);
 }
@@ -65,6 +70,7 @@ struct Error
 std::set<std::string> ignores;
 std::vector<std::string> confLines;
 std::string currDir;
+std::string editCommand = "vim {0} \"+call cursor({1}, {2})\"";
 
 void saveConfig()
 {
@@ -118,17 +124,22 @@ void handleError(const Error& e, std::vector<std::string> const& text)
         saveConfig();
         break;
     case 'e':
-        system(fmt::format("nvim {} \"+call cursor({}, {})\"", e.fileName,
-                           e.line, e.column)
-                   .c_str());
+        system(fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
         break;
     }
 }
 int main(int argc, char** argv)
 {
-    if (argc < 2) {
-        return 0;
-    }
+    CLI::App app{"autotidy"};
+
+    std::string filename;
+    auto configFileName = ".clang-tidy"s;
+    app.add_option("log", filename, "clang-tidy output file")->required();
+    app.add_option("-c,--clang-tidy-config", configFileName,
+                   "clang-tidy config file", true);
+    app.add_option("-e,--edit-command", editCommand, "Command to use for editing file", true);
+
+    CLI11_PARSE(app, argc, argv);
 
     currDir = currentDir();
     if (!absl::EndsWith(currDir, "/")) {
