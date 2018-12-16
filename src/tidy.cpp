@@ -2,11 +2,14 @@
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_split.h>
+#include <absl/strings/ascii.h>
 
 #include <fmt/color.h>
 #include <fmt/format.h>
 
 #include <CLI/CLI.hpp>
+
+#include <yaml-cpp/yaml.h>
 
 #include <cstdio>
 #include <fstream>
@@ -65,6 +68,7 @@ struct Error
     int column = 0;
     std::string fileName;
     std::string error;
+    std::string text;
 };
 
 std::set<std::string> ignores;
@@ -86,7 +90,7 @@ void saveConfig()
     }
 }
 
-void handleError(const Error& e, std::vector<std::string> const& text)
+void handleError(const Error& e)
 {
     if (ignores.count(e.check) > 0) {
         return;
@@ -101,9 +105,7 @@ void handleError(const Error& e, std::vector<std::string> const& text)
     fmt::print(fmt::fg(fmt::color::white), ":{}", e.line);
     fmt::print(fmt::fg(fmt::color::light_pink), " [{}]", e.check);
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
-    for (auto const& t : text) {
-        std::puts(t.c_str());
-    }
+    std::puts(e.text.c_str());
 
     fmt::print(fmt::fg(fmt::color::cyan),
                "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
@@ -132,12 +134,14 @@ int main(int argc, char** argv)
 {
     CLI::App app{"autotidy"};
 
+    std::string fixesFile;
     std::string filename;
     auto configFileName = ".clang-tidy"s;
     app.add_option("log", filename, "clang-tidy output file")->required();
     app.add_option("-c,--clang-tidy-config", configFileName,
                    "clang-tidy config file", true);
     app.add_option("-e,--edit-command", editCommand, "Command to use for editing file", true);
+    app.add_option("-f,--fixes-file", fixesFile, "Exported fixes from clang-tidy");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -157,9 +161,7 @@ int main(int argc, char** argv)
             if (q1 > q0 && q0 != std::string::npos) {
                 auto checks = line.substr(q0 + 1, q1 - q0 - 1);
                 for (absl::string_view c : absl::StrSplit(checks, ",")) {
-                    while (c.front() == ' ') {
-                        c.remove_prefix(1);
-                    }
+                    c = absl::StripLeadingAsciiWhitespace(c);
                     if (c.front() == '-') {
                         ignores.emplace(c.substr(1));
                     }
@@ -175,6 +177,7 @@ int main(int argc, char** argv)
     std::cmatch currentMatch;
     std::vector<std::string> text;
     Error error;
+    std::vector<Error> errorList;
     std::ifstream logFile(argv[1]);
     while (std::getline(logFile, line)) {
         if (std::regex_match(line.c_str(), currentMatch, errline)) {
@@ -184,8 +187,10 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            if (error.error != "")
-                handleError(error, text);
+            if (error.error != "") {
+                errorList.push_back(error);
+                errorList.back().text = absl::StrJoin(text, "\n");
+            }
             text.clear();
 
             error = {currentMatch[6], std::stoi(currentMatch[2].str()),
@@ -195,4 +200,19 @@ int main(int argc, char** argv)
             text.push_back(line);
         }
     }
+
+    if(fixesFile != "") {
+        YAML::Node fixes = YAML::LoadFile(fixesFile);
+        int i=0;
+        for(auto const& d : fixes["Diagnostics"]) {
+            fmt::print("{} vs {}\n", d["DiagnosticName"].as<std::string>(), errorList[i].check);
+            i++;
+        }
+    }
+
+    for(auto const& e : errorList) {
+        handleError(e);
+    }
+
+
 }
