@@ -11,6 +11,7 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -103,6 +104,49 @@ void saveConfig()
     }
 }
 
+void copyFile(std::string const& target, std::string const& source)
+{
+    std::ifstream src(source, std::ios::binary);
+    std::ofstream dst(target, std::ios::binary);
+    dst << src.rdbuf();
+}
+
+std::vector<char> readFile(std::string const& fileName)
+{
+    std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::vector<char> buffer(size);
+    if (file.read(buffer.data(), size)) {
+        return buffer;
+    }
+    return buffer;
+}
+
+void applyReplacement(Replacement const& r, std::string const& outputFile)
+{
+    auto contents = readFile(r.path);
+    auto newLength = r.text.length();
+    auto insertPos = contents.begin() + r.offset;
+
+    if (newLength < r.length) {
+        // Remove some characters
+        contents.erase(insertPos, insertPos + r.length - newLength);
+        // contents.resize(contents.size() - (r.length - newLength));
+    } else if (newLength > r.length) {
+        // Insert some empty characters
+        contents.insert(insertPos, newLength - r.length, 0);
+    }
+    insertPos = contents.begin() + r.offset;
+
+    std::copy(r.text.begin(), r.text.end(), insertPos);
+
+    std::ofstream out(outputFile);
+    out << std::string(contents.begin(), contents.end());
+    out.close();
+}
+
 void handleError(const Error& e)
 {
     if (ignores.count(e.check) > 0 || e.fileName == "") {
@@ -120,17 +164,25 @@ void handleError(const Error& e)
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
     std::puts(e.text.c_str());
 
-    if(e.replacements.size() > 0) {
-        fmt::print(fmt::fg(fmt::color::coral), "Fix available\n");
+    size_t i = 0;
+    for (auto const& r : e.replacements) {
+        applyReplacement(r, fmt::format(".patchedFile{}", i));
+        system(fmt::format("diff -u3 --color {} .patchedFile{}", r.path, i)
+                   .c_str());
     }
 
     fmt::print(fmt::fg(fmt::color::cyan),
-               "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
+               "[e]dit, [f]ix, [i]gnore, [s]kip, [n/N]olint ? ");
     std::fflush(stdout);
 
     auto c = getch();
     std::puts("");
     switch (c) {
+    case 'f':
+        for (size_t i = 0; i < e.replacements.size(); i++) {
+            copyFile(e.replacements[i].path, fmt::format(".patchedFile{}", i));
+        }
+        break;
     case 'n':
         system(fmt::format("sed -i '{}s/$/ \\/\\/NOLINT/'", e.line).c_str());
         break;
@@ -146,6 +198,11 @@ void handleError(const Error& e)
         system(fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
         break;
     }
+
+    for (size_t i = 0; i < e.replacements.size(); i++) {
+        std::remove(fmt::format(".patchedFile{}", i).c_str());
+    }
+
 }
 int main(int argc, char** argv)
 {
