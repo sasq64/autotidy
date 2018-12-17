@@ -1,3 +1,7 @@
+#include "patched_file.h"
+#include "utils.h"
+
+#include <absl/algorithm/container.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
@@ -10,67 +14,35 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include <termios.h>
-#include <unistd.h>
 #include <algorithm>
 #include <cstdio>
-#include <fstream>
-#include <iostream>
 #include <regex>
 #include <set>
 #include <stdexcept>
+#include <termios.h>
+#include <unistd.h>
 
 using namespace std::string_literals;
-
-static char getch() {
-    char buf = 0;
-    struct termios old {};
-    if (tcgetattr(0, &old) < 0) {
-        throw new std::runtime_error("tcsetattr()");
-    }
-    old.c_lflag &= ~ICANON;
-    old.c_lflag &= ~ECHO;
-    old.c_cc[VMIN] = 1;
-    old.c_cc[VTIME] = 0;
-    if (tcsetattr(0, TCSANOW, &old) < 0) {
-        throw new std::runtime_error("tcsetattr ICANON");
-    }
-    if (read(0, &buf, 1) < 0) {
-        throw new std::runtime_error("read()");
-    }
-    old.c_lflag |= ICANON;
-    old.c_lflag |= ECHO;
-    if (tcsetattr(0, TCSADRAIN, &old) < 0) {
-        throw new std::runtime_error("tcsetattr ~ICANON");
-    }
-    return (buf);
-}
-
-std::string currentDir() {
-    char buf[4096] = {0};
-    getcwd(&buf[0], sizeof(buf));
-    return std::string(&buf[0]);
-}
-
-struct Replacement {
+struct Replacement
+{
     Replacement(std::string aPath, size_t aOffset, size_t aLength,
                 std::string aText)
-        : path(aPath), offset(aOffset), length(aLength), text(aText) {}
+        : path(aPath), offset(aOffset), length(aLength), text(aText)
+    {}
     std::string path;
     size_t offset;
     size_t length;
     std::string text;
 };
 
-struct Error {
+struct Error
+{
     Error() = default;
     Error(std::string aCheck, int aLine, int aColumn, std::string aFileName,
           std::string aError)
-        : check(std::move(aCheck)),
-          line(aLine),
-          column(aColumn),
-          fileName(std::move(aFileName)),
-          error(std::move(aError)) {}
+        : check(std::move(aCheck)), line(aLine), column(aColumn),
+          fileName(std::move(aFileName)), error(std::move(aError))
+    {}
     std::string check;
     int line = 0;
     int column = 0;
@@ -85,7 +57,8 @@ std::vector<std::string> confLines;
 std::string currDir;
 std::string editCommand = "vim {0} \"+call cursor({1}, {2})\"";
 
-void saveConfig() {
+void saveConfig()
+{
     std::ofstream outf{".clang-tidy"};
     for (auto const& line : confLines) {
         if (absl::StartsWith(line, "Checks:")) {
@@ -98,75 +71,64 @@ void saveConfig() {
     }
 }
 
-void copyFile(std::string const& target, std::string const& source) {
-    std::ifstream src(source, std::ios::binary);
-    std::ofstream dst(target, std::ios::binary);
-    dst << src.rdbuf();
-}
-
-std::vector<char> readFile(std::string const& fileName) {
-    std::ifstream file(fileName, std::ios::binary | std::ios::ate);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    std::vector<char> buffer(size);
-    if (file.read(buffer.data(), size)) {
-        return buffer;
-    }
-    return buffer;
-}
-
-class Replacer {
-    std::vector<char> contents;
-    std::string fileName;
+class Replacer
+{
     int count = 0;
-    int64_t delta = 0;
 
-    std::string outputFile;
+    std::vector<PatchedFile> patchedFiles;
 
-    std::vector<std::string> files;
+    // Files temporarily patches for the current fix
+    std::map<std::string, PatchedFile> tempFiles;
 
-   public:
-    std::vector<std::string> const& getFiles() const { return files; }
+public:
+    std::vector<std::pair<std::string, std::string>> getFiles() const
+    {
+        std::vector<std::pair<std::string, std::string>> result;
+        absl::c_transform(tempFiles, std::back_inserter(result),
+                          [](auto const& p) {
+                              return std::make_pair(p.first, p.second.fileName);
+                          });
+        return result;
+    }
 
     void commit() {
-        if (outputFile == "") return;
-        std::ofstream out(outputFile);
-        out << std::string(contents.begin(), contents.end());
-        out.close();
-        outputFile = "";
+        for(auto const &p : tempFiles) {
+            copyFile(p.first, p.second.fileName);
+            patchedFiles.emplace_back(p.second);
+            patchedFiles.back().fileName = p.first;
+        }
     }
 
-    void applyReplacement(Replacement const& r) {
-        if (r.path != fileName) {
-            commit();
-            contents = readFile(r.path);
-            fileName = r.path;
-            files.push_back(fileName);
-            outputFile = fmt::format(".patchFile{}", count++);
+    void done() {
+        for(auto const &p : tempFiles) {
+            std::remove(p.second.fileName.c_str());
         }
+        tempFiles.clear();
+        count = 0;
+    }
 
-        auto offset = r.offset + delta;
+    void applyReplacement(Replacement const& r)
+    {
+        auto& pf = tempFiles[r.path];
+        if (pf.fileName.empty()) {
 
-        auto newLength = r.text.length();
-        auto insertPos = contents.begin() + offset;
+            auto it = absl::c_find(patchedFiles, r.path);
+            if(it != patchedFiles.end()) {
+                tempFiles[r.path] = *it;
+            }
 
-        if (newLength < r.length) {
-            // Remove some characters
-            contents.erase(insertPos, insertPos + r.length - newLength);
-            // contents.resize(contents.size() - (r.length - newLength));
-        } else if (newLength > r.length) {
-            // Insert some empty characters
-            contents.insert(insertPos, newLength - r.length, 0);
+            pf.fileName = fmt::format(".patchedFile{}", count++);
+            copyFile(pf.fileName, r.path);
         }
-        insertPos = contents.begin() + offset;
-        delta += (newLength - r.length);
-
-        std::copy(r.text.begin(), r.text.end(), insertPos);
+        pf.patch(r.offset, r.length, r.text);
+        pf.flush();
     }
 };
 
-void handleError(const Error& e) {
+Replacer replacer;
+
+void handleError(const Error& e)
+{
     if (ignores.count(e.check) > 0 || e.fileName == "") {
         return;
     }
@@ -182,16 +144,14 @@ void handleError(const Error& e) {
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
     std::puts(e.text.c_str());
 
-    Replacer replacer;
     for (auto const& r : e.replacements) {
         replacer.applyReplacement(r);
     }
-    replacer.commit();
 
     auto const& files = replacer.getFiles();
-    for (size_t i = 0; i < files.size(); i++) {
-        system(fmt::format("diff -u3 --color {} .patchFile{}", files[i], i)
-                   .c_str());
+    for (auto const& p : files) {
+        system(
+            fmt::format("diff -u3 --color {} {}", p.first, p.second).c_str());
     }
 
     fmt::print(fmt::fg(fmt::color::cyan),
@@ -201,36 +161,28 @@ void handleError(const Error& e) {
     auto c = getch();
     std::puts("");
     switch (c) {
-        case 'f':
-            for (size_t i = 0; i < e.replacements.size(); i++) {
-                copyFile(e.replacements[i].path,
-                         fmt::format(".patchedFile{}", i));
-            }
-            break;
-        case 'n':
-            system(
-                fmt::format("sed -i '{}s/$/ \\/\\/NOLINT/'", e.line).c_str());
-            break;
-        case 'N':
-            system(fmt::format("sed -i '{}s/$/ \\/\\/NOLINT({})/'", e.line,
-                               e.check)
-                       .c_str());
-            break;
-        case 'i':
-            ignores.insert(e.check);
-            saveConfig();
-            break;
-        case 'e':
-            system(
-                fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
-            break;
+    case 'f':
+        replacer.commit();
+        break;
+    case 'n':
+        system(fmt::format("sed -i '{}s/$/ \\/\\/NOLINT/'", e.line).c_str());
+        break;
+    case 'N':
+        system(fmt::format("sed -i '{}s/$/ \\/\\/NOLINT({})/'", e.line, e.check)
+                   .c_str());
+        break;
+    case 'i':
+        ignores.insert(e.check);
+        saveConfig();
+        break;
+    case 'e':
+        system(fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
+        break;
     }
-
-    for (size_t i = 0; i < replacer.getFiles().size(); i++) {
-        std::remove(fmt::format(".patchedFile{}", i).c_str());
-    }
+    replacer.done();
 }
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     CLI::App app{"autotidy"};
 
     std::string fixesFile;
@@ -273,6 +225,18 @@ int main(int argc, char** argv) {
         confLines.push_back(line);
     }
 
+    enum
+    {
+        WHOLE_MATCH,
+        FILENAME_MATCH,
+        FILENAME,
+        LINE,
+        COLUMN,
+        TYPE,
+        MESSAGE,
+        CHECK
+    };
+
     std::regex errline{R"((([^:]+):(\d+):(\d+):)?\s*(\w+):\s*(.*)\[(.*)\])"};
 
     std::cmatch currentMatch;
@@ -282,7 +246,7 @@ int main(int argc, char** argv) {
     std::ifstream logFile(filename);
     while (std::getline(logFile, line)) {
         if (std::regex_match(line.c_str(), currentMatch, errline)) {
-            if (currentMatch[4] == "note") {
+            if (currentMatch[TYPE] == "note") {
                 text.push_back(line);
                 continue;
             }
@@ -293,9 +257,10 @@ int main(int argc, char** argv) {
             }
             text.clear();
 
-            error = {currentMatch[7], std::atoi(currentMatch[3].str().c_str()),
-                     std::atoi(currentMatch[4].str().c_str()), currentMatch[2],
-                     currentMatch[6]};
+            error = {currentMatch[CHECK],
+                     std::atoi(currentMatch[LINE].str().c_str()),
+                     std::atoi(currentMatch[COLUMN].str().c_str()),
+                     currentMatch[FILENAME], currentMatch[MESSAGE]};
         } else {
             text.push_back(line);
         }

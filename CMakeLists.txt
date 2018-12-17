@@ -42,6 +42,11 @@ add_subdirectory(external/fmt)
 add_subdirectory(external/abseil-cpp)
 add_subdirectory(external/CLI11)
 add_subdirectory(external/yaml-cpp)
+
+add_executable(tidytest src/testmain.cpp src/patched_file.test.cpp)
+target_compile_options(tidytest PRIVATE ${WARNINGS})
+target_link_libraries(tidytest PRIVATE absl::strings absl::algorithm)
+
 add_executable(tidy src/tidy.cpp)
 target_compile_options(tidy PRIVATE ${WARNINGS})
 target_include_directories(tidy PRIVATE external)
