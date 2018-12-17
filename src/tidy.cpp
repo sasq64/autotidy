@@ -21,13 +21,14 @@
 #include <stdexcept>
 #include <termios.h>
 #include <unistd.h>
+#include <utility>
 
 using namespace std::string_literals;
 struct Replacement
 {
     Replacement(std::string aPath, size_t aOffset, size_t aLength,
                 std::string aText)
-        : path(aPath), offset(aOffset), length(aLength), text(aText)
+        : path(std::move(aPath)), offset(aOffset), length(aLength), text(std::move(aText))
     {}
     std::string path;
     size_t offset;
@@ -75,7 +76,7 @@ class Replacer
 {
     int count = 0;
 
-    std::vector<PatchedFile> patchedFiles;
+    std::map<std::string, PatchedFile> patchedFiles;
 
     // Files temporarily patches for the current fix
     std::map<std::string, PatchedFile> tempFiles;
@@ -99,8 +100,7 @@ public:
             copyFileToFrom(originalName, tempPatched.fileName);
             // Remember the patches we appliced since we may patch it again
             // in a later fix
-            patchedFiles.emplace_back(tempPatched);
-            patchedFiles.back().fileName = originalName;
+            patchedFiles[originalName] = tempPatched;
         }
         done();
     }
@@ -119,10 +119,10 @@ public:
         auto& pf = tempFiles[r.path];
         if (pf.fileName.empty()) {
 
-            auto it = absl::c_find(patchedFiles, r.path);
+            auto it = patchedFiles.find(r.path);
             if (it != patchedFiles.end()) {
                 // This file was patched earlier
-                pf.patches = it->patches;
+                pf.patches = it->second.patches;
             }
 
             pf.fileName = fmt::format(".patchedFile{}", count++);
@@ -137,7 +137,7 @@ Replacer replacer;
 
 void handleError(const Error& e)
 {
-    if (ignores.count(e.check) > 0 || e.fileName == "") {
+    if (ignores.count(e.check) > 0 || e.fileName.empty()) {
         return;
     }
 
@@ -167,7 +167,7 @@ void handleError(const Error& e)
     std::fflush(stdout);
 
     auto c = getch();
-    std::puts("");
+    fmt::print("{}\n", c);
     switch (c) {
     case 'f':
         replacer.commit();
@@ -226,7 +226,6 @@ int main(int argc, char** argv)
                     if (c.front() == '-') {
                         ignores.emplace(c.substr(1));
                     }
-                    fmt::print("{}\n", std::string(c.data(), c.length()));
                 }
             }
         }
@@ -259,7 +258,7 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            if (error.error != "") {
+            if (!error.error.empty()) {
                 errorList.push_back(error);
                 errorList.back().text = absl::StrJoin(text, "\n");
             }
@@ -273,17 +272,18 @@ int main(int argc, char** argv)
             text.push_back(line);
         }
     }
-    if (error.error != "") {
+    if (!error.error.empty()) {
         errorList.push_back(error);
         errorList.back().text = absl::StrJoin(text, "\n");
     }
 
-    if (fixesFile != "") {
+    if (!fixesFile.empty()) {
         auto fixesData = readFile(fixesFile);
         bool inQuotes;
         for (size_t i = 0; i < fixesData.size(); i++) {
-            if (fixesData[i] == '\'' && fixesData[i + 1] != '\'')
-                inQuotes = inQuotes ? false : true;
+            if (fixesData[i] == '\'' && fixesData[i + 1] != '\'') {
+                inQuotes = !inQuotes;
+}
             if (inQuotes && fixesData[i] == 10) {
                 fixesData.insert(fixesData.begin() + i, 10);
                 i++;

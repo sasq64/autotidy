@@ -36,15 +36,3 @@ TEST_CASE("patched_file", "")
         "(Almost) line one\nOur line second\nThe 3rd line\nNew contents for fourth line\nThe actual 5th line\n"s);
 }
 
-TEST_CASE("source_file", "")
-{
-    copyFileToFrom("temp.cpp", "convert.cpp");
-
-    PatchedFile pf{"temp.cpp"};
-    pf.patch(549, 40, "(char i : str)");
-    pf.patch(604, 6, "i");
-    pf.flush();
-
-    auto contents = readFile("temp.cpp");
-    std::puts(std::string(contents.begin(), contents.end()).c_str());
-}

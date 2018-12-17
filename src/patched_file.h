@@ -1,9 +1,11 @@
 #include "utils.h"
 
+
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
+#include <iostream>
 
 // Add all files that are getting replacements to this instance
 // For each fix, create temporary file with patches
@@ -36,8 +38,9 @@ struct PatchedFile
 
         // offset depends on prevous patches
         for (auto const& p : patches) {
-            if (p.first < offset)
+            if (p.first < offset) {
                 offset += p.second;
+            }
         }
 
         auto newLength = text.length();
