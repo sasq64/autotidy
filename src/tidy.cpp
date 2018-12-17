@@ -91,16 +91,23 @@ public:
         return result;
     }
 
-    void commit() {
-        for(auto const &p : tempFiles) {
-            copyFile(p.first, p.second.fileName);
-            patchedFiles.emplace_back(p.second);
-            patchedFiles.back().fileName = p.first;
+    void commit()
+    {
+        for (auto const& p : tempFiles) {
+            auto const& originalName = p.first;
+            auto const& tempPatched = p.second;
+            copyFileToFrom(originalName, tempPatched.fileName);
+            // Remember the patches we appliced since we may patch it again
+            // in a later fix
+            patchedFiles.emplace_back(tempPatched);
+            patchedFiles.back().fileName = originalName;
         }
+        done();
     }
 
-    void done() {
-        for(auto const &p : tempFiles) {
+    void done()
+    {
+        for (auto const& p : tempFiles) {
             std::remove(p.second.fileName.c_str());
         }
         tempFiles.clear();
@@ -113,12 +120,13 @@ public:
         if (pf.fileName.empty()) {
 
             auto it = absl::c_find(patchedFiles, r.path);
-            if(it != patchedFiles.end()) {
-                tempFiles[r.path] = *it;
+            if (it != patchedFiles.end()) {
+                // This file was patched earlier
+                pf.patches = it->patches;
             }
 
             pf.fileName = fmt::format(".patchedFile{}", count++);
-            copyFile(pf.fileName, r.path);
+            copyFileToFrom(pf.fileName, r.path);
         }
         pf.patch(r.offset, r.length, r.text);
         pf.flush();

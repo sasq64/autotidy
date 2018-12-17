@@ -40,7 +40,7 @@ inline std::string currentDir()
     return std::string(&buf[0]);
 }
 
-inline void copyFile(std::string const& target, std::string const& source)
+inline void copyFileToFrom(std::string const& target, std::string const& source)
 {
     std::ifstream src(source, std::ios::binary);
     std::ofstream dst(target, std::ios::binary);
@@ -60,7 +60,7 @@ inline std::vector<char> readFile(std::string const& fileName)
     return buffer;
 }
 
-template<typename T>
+template <typename T>
 inline void writeFile(std::string const& outputFile, T const& contents)
 {
     std::ofstream out(outputFile);

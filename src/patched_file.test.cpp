@@ -38,7 +38,7 @@ TEST_CASE("patched_file", "")
 
 TEST_CASE("source_file", "")
 {
-    copyFile("temp.cpp", "convert.cpp");
+    copyFileToFrom("temp.cpp", "convert.cpp");
 
     PatchedFile pf{"temp.cpp"};
     pf.patch(549, 40, "(char i : str)");

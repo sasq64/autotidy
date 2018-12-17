@@ -64,9 +64,9 @@ struct PatchedFile
         writeFile(fileName, std::string(contents.begin(), contents.end()));
     }
 
-    bool operator==(const std::string& other) const {
+    bool operator==(const std::string& other) const
+    {
         return other == fileName;
     }
-
 };
 
