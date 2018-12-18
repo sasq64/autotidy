@@ -28,7 +28,8 @@ struct Replacement
 {
     Replacement(std::string aPath, size_t aOffset, size_t aLength,
                 std::string aText)
-        : path(std::move(aPath)), offset(aOffset), length(aLength), text(std::move(aText))
+        : path(std::move(aPath)), offset(aOffset), length(aLength),
+          text(std::move(aText))
     {}
     std::string path;
     size_t offset;
@@ -39,11 +40,13 @@ struct Replacement
 struct Error
 {
     Error() = default;
-    Error(std::string aCheck, int aLine, int aColumn, std::string aFileName,
-          std::string aError)
-        : check(std::move(aCheck)), line(aLine), column(aColumn),
-          fileName(std::move(aFileName)), error(std::move(aError))
+    Error(int aNumber, std::string aCheck, int aLine, int aColumn,
+          std::string aFileName, std::string aError)
+        : number(aNumber), check(std::move(aCheck)), line(aLine),
+          column(aColumn), fileName(std::move(aFileName)),
+          error(std::move(aError))
     {}
+    int number = 0;
     std::string check;
     int line = 0;
     int column = 0;
@@ -146,6 +149,7 @@ void handleError(const Error& e)
         fn = fn.substr(currDir.length());
     }
 
+    fmt::print(fmt::fg(fmt::color::white), "\n#{} ", e.number);
     fmt::print(fmt::fg(fmt::color::gold), "{}", fn);
     fmt::print(fmt::fg(fmt::color::white), ":{}", e.line);
     fmt::print(fmt::fg(fmt::color::light_pink), " [{}]", e.check);
@@ -157,36 +161,62 @@ void handleError(const Error& e)
     }
 
     auto const& files = replacer.getFiles();
-    for (auto const& p : files) {
-        system(
-            fmt::format("diff -u3 --color {} {}", p.first, p.second).c_str());
-    }
 
-    fmt::print(fmt::fg(fmt::color::cyan),
-               "[e]dit, [f]ix, [i]gnore, [s]kip, [n/N]olint ? ");
-    std::fflush(stdout);
+    bool hasPatch = !files.empty();
 
-    auto c = getch();
-    fmt::print("{}\n", c);
-    switch (c) {
-    case 'f':
-        replacer.commit();
-        break;
-    case 'n':
-        system(fmt::format("sed -i '{}s/$/ \\/\\/NOLINT/'", e.line).c_str());
-        break;
-    case 'N':
-        system(fmt::format("sed -i '{}s/$/ \\/\\/NOLINT({})/'", e.line, e.check)
-                   .c_str());
-        break;
-    case 'i':
-        ignores.insert(e.check);
-        saveConfig();
-        break;
-    case 'e':
-        system(fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
-        break;
+    bool done = false;
+
+    auto separator = std::string(60, '-');
+ 
+    while (!done) {
+
+        for (auto const& p : files) {
+            system(fmt::format("diff -u3 --color {} {}", p.first, p.second)
+                       .c_str());
+        }
+
+        fmt::print(
+            fmt::fg(fmt::color::cyan),
+            hasPatch ? "[a]pply patch, [e]dit, [i]gnore, [s]kip, [n/N]olint ? "
+                     : "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
+        std::fflush(stdout);
+
+        auto c = getch();
+        fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black),
+                   "[{}]", (char)c);
+        std::puts("");
+        switch (c) {
+        case 'a':
+            replacer.commit();
+            break;
+        case 'n':
+            system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", e.line,
+                               e.fileName)
+                       .c_str());
+            done = true;
+            break;
+        case 'N':
+            system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}",
+                               e.line, e.check, e.fileName)
+                       .c_str());
+            done = true;
+            break;
+        case 'i':
+            ignores.insert(e.check);
+            saveConfig();
+            done = true;
+            break;
+        case 'e':
+            system(
+                fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
+            break;
+        case 's':
+            done = true;
+            break;
+        }
     }
+    fmt::print(fmt::fg(fmt::color::steel_blue), separator);
+    std::puts("");
     replacer.done();
 }
 int main(int argc, char** argv)
@@ -251,6 +281,7 @@ int main(int argc, char** argv)
     Error error;
     std::vector<Error> errorList;
     std::ifstream logFile(filename);
+    int no = 0;
     while (std::getline(logFile, line)) {
         if (std::regex_match(line.c_str(), currentMatch, errline)) {
             if (currentMatch[TYPE] == "note") {
@@ -264,10 +295,12 @@ int main(int argc, char** argv)
             }
             text.clear();
 
-            error = {currentMatch[CHECK],
+            error = {no++,
+                     currentMatch[CHECK],
                      std::atoi(currentMatch[LINE].str().c_str()),
                      std::atoi(currentMatch[COLUMN].str().c_str()),
-                     currentMatch[FILENAME], currentMatch[MESSAGE]};
+                     currentMatch[FILENAME],
+                     currentMatch[MESSAGE]};
         } else {
             text.push_back(line);
         }
@@ -283,7 +316,7 @@ int main(int argc, char** argv)
         for (size_t i = 0; i < fixesData.size(); i++) {
             if (fixesData[i] == '\'' && fixesData[i + 1] != '\'') {
                 inQuotes = !inQuotes;
-}
+            }
             if (inQuotes && fixesData[i] == 10) {
                 fixesData.insert(fixesData.begin() + i, 10);
                 i++;
