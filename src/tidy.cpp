@@ -81,7 +81,7 @@ class Replacer
 
     std::map<std::string, PatchedFile> patchedFiles;
 
-    // Files temporarily patches for the current fix
+    // Files temporarily patches() for the current fix
     std::map<std::string, PatchedFile> tempFiles;
 
 public:
@@ -90,20 +90,47 @@ public:
         std::vector<std::pair<std::string, std::string>> result;
         absl::c_transform(tempFiles, std::back_inserter(result),
                           [](auto const& p) {
-                              return std::make_pair(p.first, p.second.fileName);
+                              return std::make_pair(p.first, p.second.fileName());
                           });
         return result;
+    }
+
+    size_t offsetInOriginalFile(std::string fileName, int line, int col)
+    {
+        auto contents = readFile(fileName + ".orig");
+        return lineColToOffset(contents, line, col);
+    }
+
+    size_t offsetInFile(std::string const& fileName, int line, int col)
+    {
+        return lineColToOffset(patchedFiles[fileName].contents(), line, col);
+    }
+
+    void translateLineColumn(std::string const& fileName, int& line, int& column)
+    {
+        if(patchedFiles.count(fileName) == 0)
+            return;
+
+        auto oldOffs = offsetInOriginalFile(fileName, line, column);
+        auto newOffs = patchedFiles[fileName].translateOffset(oldOffs);
+        std::tie(line, column) = offsetToLineCol(patchedFiles[fileName].contents(), newOffs);
     }
 
     void commit()
     {
         for (auto const& p : tempFiles) {
-            auto const& originalName = p.first;
+            auto const& sourceName = p.first;
             auto const& tempPatched = p.second;
-            copyFileToFrom(originalName, tempPatched.fileName);
-            // Remember the patches we appliced since we may patch it again
+
+            auto backupName = sourceName + ".orig";
+
+            if(!fileExists(backupName))
+                copyFileToFrom(backupName, sourceName);
+
+            copyFileToFrom(sourceName, tempPatched.fileName());
+            // Remember the patches() we appliced since we may patch it again
             // in a later fix
-            patchedFiles[originalName] = tempPatched;
+            patchedFiles[sourceName] = tempPatched;
         }
         done();
     }
@@ -111,7 +138,7 @@ public:
     void done()
     {
         for (auto const& p : tempFiles) {
-            std::remove(p.second.fileName.c_str());
+            std::remove(p.second.fileName().c_str());
         }
         tempFiles.clear();
         count = 0;
@@ -120,16 +147,15 @@ public:
     void applyReplacement(Replacement const& r)
     {
         auto& pf = tempFiles[r.path];
-        if (pf.fileName.empty()) {
+        if (pf.fileName().empty()) {
 
             auto it = patchedFiles.find(r.path);
             if (it != patchedFiles.end()) {
-                // This file was patched earlier
-                pf.patches = it->second.patches;
+                // This file was patched earlier, copy to get patches
+                pf = it->second;
             }
-
-            pf.fileName = fmt::format(".patchedFile{}", count++);
-            copyFileToFrom(pf.fileName, r.path);
+            pf.setFileName(fmt::format(".patchedFile{}", count++));
+            copyFileToFrom(pf.fileName(), r.path);
         }
         pf.patch(r.offset, r.length, r.text);
         pf.flush();
@@ -160,7 +186,12 @@ void handleError(const Error& e)
         replacer.applyReplacement(r);
     }
 
-    auto separator = std::string(60, '-');
+    auto line = e.line;
+    auto column = e.column;
+    replacer.translateLineColumn(e.fileName, line, column);
+    fmt::print("{},{} => {},{}\n", e.line, e.column, line, column);
+
+    auto const separator = std::string(60, '-');
 
     auto const& files = replacer.getFiles();
     bool hasPatch = !files.empty();
@@ -184,12 +215,12 @@ void handleError(const Error& e)
         replacer.commit();
         break;
     case 'n':
-        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", e.line,
+        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", line,
                            e.fileName)
                    .c_str());
         break;
     case 'N':
-        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}", e.line,
+        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}", line,
                            e.check, e.fileName)
                    .c_str());
         break;
@@ -198,7 +229,8 @@ void handleError(const Error& e)
         saveConfig();
         break;
     case 'e':
-        system(fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
+
+        system(fmt::format(editCommand, e.fileName, line, column).c_str());
         break;
     case 's':
         break;

@@ -24,15 +24,40 @@ TEST_CASE("patched_file", "")
     writeFile("temp.dat", output);
 
     PatchedFile pf{"temp.dat"};
+
+    int line = 3;
+    int col = 11; // The third [l]ine
+
+    auto offs = lineColToOffset(pf.contents(), line, col);
+
+
+    int l0, c0;
+
+    std::tie(l0, c0) = offsetToLineCol(pf.contents(), offs);
+
+
+    std::cout << "OFFS: " << offs << "L" << l0 << " C" << c0 << "\n";
+
+    REQUIRE(offs == 30);
+    REQUIRE(line == l0);
+    REQUIRE(col == c0);
+
+    pf.patch(lineOffsets[0] + 8, 0, "\n\n");
     pf.patch(lineOffsets[2] + 4, 5, "3rd");
     pf.patch(lineOffsets[1] + 9, 1, "second");
     pf.patch(lineOffsets[0], 0, "(Almost) ");
     pf.patch(lineOffsets[3], 0, "New contents for fourth line");
     pf.flush();
 
+    auto newOffs = pf.translateOffset(offs); //line, col);
+    std::tie(line, col) = offsetToLineCol(pf.contents(), newOffs);
+
+    REQUIRE(line == 5);
+    REQUIRE(col == 9);
+
     auto contents = readFile("temp.dat");
     REQUIRE(
         std::string(contents.begin(), contents.end()) ==
-        "(Almost) line one\nOur line second\nThe 3rd line\nNew contents for fourth line\nThe actual 5th line\n"s);
+        "(Almost) line one\n\n\nOur line second\nThe 3rd line\nNew contents for fourth line\nThe actual 5th line\n"s);
 }
 

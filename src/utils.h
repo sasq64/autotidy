@@ -6,6 +6,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <vector>
+#include <sys/stat.h>
 
 inline char getch()
 {
@@ -31,6 +32,12 @@ inline char getch()
         throw new std::runtime_error("tcsetattr ~ICANON");
     }
     return (buf);
+}
+
+inline bool fileExists(const std::string& name)
+{
+    struct stat buffer;
+    return (stat(name.c_str(), &buffer) == 0);
 }
 
 inline std::string currentDir()
@@ -67,3 +74,51 @@ inline void writeFile(std::string const& outputFile, T const& contents)
     out << contents;
     out.close();
 }
+
+inline size_t lineColToOffset(std::vector<char> const& contents, int line,
+                              int col)
+{
+    if (line == 0)
+        return -1;
+    if (line == 1)
+        return col;
+
+    auto it = contents.begin();
+    col--;
+    line--;
+    while ((it = std::find(it, contents.end(), 0xa)) != contents.end()) {
+        line--;
+        it++;
+
+        if (line == 0)
+            return std::distance(contents.begin(), it) + col;
+    }
+    return -1;
+}
+
+inline std::pair<int, int> offsetToLineCol(std::vector<char> const& contents,
+                                           size_t offset)
+{
+
+    auto it = contents.begin();
+    auto prevIt = it;
+    int line = 1;
+    int64_t offs = offset;
+    while ((it = std::find(it, contents.end(), 0xa)) != contents.end()) {
+
+        it++;
+
+        // std::cout << "LINE " << (line+1) << " STARTS AT " <<
+        // std::distance(contents.begin(), it) << "\n";
+
+        if (std::distance(contents.begin(), it) > offs) {
+            // We have passed our offset
+            return std::make_pair(
+                line, offs - std::distance(contents.begin() + 1, prevIt));
+        }
+        line++;
+        prevIt = it;
+    }
+    return std::make_pair(-1, -1);
+}
+

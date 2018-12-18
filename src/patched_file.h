@@ -1,11 +1,9 @@
 #include "utils.h"
 
-
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <iostream>
 
 // Add all files that are getting replacements to this instance
 // For each fix, create temporary file with patches
@@ -20,56 +18,81 @@
 
 // Saves the patches of a file, so subsequent patches can happen at the
 // correct offset.
-struct PatchedFile
+class PatchedFile
 {
-    std::string fileName;
-    std::vector<std::pair<size_t, int>> patches;
-    std::vector<char> contents;
-
+    std::string fileName_;
+    std::vector<std::pair<size_t, int>> patches_;
+    std::vector<char> contents_;
+public:
     PatchedFile() = default;
+    PatchedFile(PatchedFile const&) = default;
+    PatchedFile(std::string const& fileName) : fileName_(fileName) {}
 
-    PatchedFile(std::string const& aFileName) : fileName(aFileName) {}
+    std::vector<char> const& contents() {
+        if(contents_.size() == 0)
+            contents_ = readFile(fileName_);
+        return contents_;
+    }
 
-    // Patch this file, respecting the prevous patches
+    auto const& patches() const { return patches_; }
+    auto const& fileName() const { return fileName_; }
+
+    void setFileName(std::string const& fileName) {
+        fileName_ = fileName;
+    }
+
+    size_t translateOffset(size_t offset)
+    {
+        for (auto const& p : patches_) {
+            if (p.first < offset) {
+                offset += p.second;
+            }
+        }
+        return offset;
+    }
+
+    // Patch this file, respecting the prevous patches_
     void patch(size_t offset, size_t length, std::string const& text)
     {
-        if (contents.size() == 0)
-            contents = readFile(fileName);
+        // Make sure contents is available
+        (void)contents();
 
-        // offset depends on prevous patches
-        for (auto const& p : patches) {
+        // offset depends on prevous patches_
+        for (auto const& p : patches_) {
             if (p.first < offset) {
                 offset += p.second;
             }
         }
 
         auto newLength = text.length();
-        auto insertPos = contents.begin() + offset;
+        auto insertPos = contents_.begin() + offset;
 
         if (newLength < length) {
             // Remove some characters
-            contents.erase(insertPos, insertPos + length - newLength);
-            // contents.resize(contents.size() - (r.length - newLength));
+            contents_.erase(insertPos, insertPos + length - newLength);
+            // contents_.resize(contents_.size() - (r.length - newLength));
         } else if (newLength > length) {
             // Insert some empty characters
-            contents.insert(insertPos, newLength - length, 0);
+            contents_.insert(insertPos, newLength - length, 0);
         }
-        insertPos = contents.begin() + offset;
+        insertPos = contents_.begin() + offset;
         auto delta = (newLength - length);
 
-        patches.emplace_back(offset, delta);
+        patches_.emplace_back(offset, delta);
 
         std::copy(text.begin(), text.end(), insertPos);
     }
 
-    void flush()
+    void flush() const
     {
-        writeFile(fileName, std::string(contents.begin(), contents.end()));
+        if(contents_.size() == 0)
+            return;
+        writeFile(fileName_, std::string(contents_.begin(), contents_.end()));
     }
 
     bool operator==(const std::string& other) const
     {
-        return other == fileName;
+        return other == fileName_;
     }
 };
 
