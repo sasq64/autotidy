@@ -60,7 +60,7 @@ std::set<std::string> ignores;
 std::vector<std::string> confLines;
 std::string currDir;
 std::string editCommand = "vim {0} \"+call cursor({1}, {2})\"";
-
+std::string diffCommand = "diff -u {0} {1}";
 void saveConfig()
 {
     std::ofstream outf{".clang-tidy"};
@@ -160,61 +160,50 @@ void handleError(const Error& e)
         replacer.applyReplacement(r);
     }
 
-    auto const& files = replacer.getFiles();
+    auto separator = std::string(60, '-');
 
+    auto const& files = replacer.getFiles();
     bool hasPatch = !files.empty();
 
-    bool done = false;
-
-    auto separator = std::string(60, '-');
- 
-    while (!done) {
-
-        for (auto const& p : files) {
-            system(fmt::format("diff -u3 --color {} {}", p.first, p.second)
-                       .c_str());
-        }
-
-        fmt::print(
-            fmt::fg(fmt::color::cyan),
-            hasPatch ? "[a]pply patch, [e]dit, [i]gnore, [s]kip, [n/N]olint ? "
-                     : "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
-        std::fflush(stdout);
-
-        auto c = getch();
-        fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black),
-                   "[{}]", (char)c);
-        std::puts("");
-        switch (c) {
-        case 'a':
-            replacer.commit();
-            break;
-        case 'n':
-            system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", e.line,
-                               e.fileName)
-                       .c_str());
-            done = true;
-            break;
-        case 'N':
-            system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}",
-                               e.line, e.check, e.fileName)
-                       .c_str());
-            done = true;
-            break;
-        case 'i':
-            ignores.insert(e.check);
-            saveConfig();
-            done = true;
-            break;
-        case 'e':
-            system(
-                fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
-            break;
-        case 's':
-            done = true;
-            break;
-        }
+    for (auto const& p : files) {
+        system(fmt::format(diffCommand, p.first, p.second).c_str());
     }
+
+    fmt::print(fmt::fg(fmt::color::cyan),
+               hasPatch
+                   ? "[a]pply patch, [e]dit, [i]gnore, [s]kip, [n/N]olint ? "
+                   : "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
+    std::fflush(stdout);
+
+    auto c = getch();
+    fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black), "[{}]",
+               (char)c);
+    std::puts("");
+    switch (c) {
+    case 'a':
+        replacer.commit();
+        break;
+    case 'n':
+        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", e.line,
+                           e.fileName)
+                   .c_str());
+        break;
+    case 'N':
+        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}", e.line,
+                           e.check, e.fileName)
+                   .c_str());
+        break;
+    case 'i':
+        ignores.insert(e.check);
+        saveConfig();
+        break;
+    case 'e':
+        system(fmt::format(editCommand, e.fileName, e.line, e.column).c_str());
+        break;
+    case 's':
+        break;
+    }
+
     fmt::print(fmt::fg(fmt::color::steel_blue), separator);
     std::puts("");
     replacer.done();
@@ -229,6 +218,8 @@ int main(int argc, char** argv)
     app.add_option("log", filename, "clang-tidy output file")->required();
     app.add_option("-c,--clang-tidy-config", configFileName,
                    "clang-tidy config file", true);
+    app.add_option("-d,--diff-command", diffCommand,
+                   "Command to use for performing diff", true);
     app.add_option("-e,--edit-command", editCommand,
                    "Command to use for editing file", true);
     app.add_option("-f,--fixes-file", fixesFile,

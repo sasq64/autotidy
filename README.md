@@ -2,8 +2,11 @@
 
 ### Building
 
-`git submodule update --init`
-`make`
+```
+git submodule update --init
+make
+sudo cp builds/debug/tidy /usr/local/bin/autotidy
+```
 
 ### Using
 
@@ -16,7 +19,7 @@ clang-tidy -dump-config > .clang-tidy
 
 ```
 clang-tidy -export-fixes=fixes.yaml src/*.cpp > tidy.log
-builds/debug/autotidy -f fixes.yaml tidy.log
+autotidy -f fixes.yaml tidy.log
 ```
 
 Now you can _Ignore_ checks you don't want for your project, _Apply_ fixes if there
