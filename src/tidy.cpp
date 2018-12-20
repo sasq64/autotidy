@@ -116,6 +116,16 @@ public:
         std::tie(line, column) = offsetToLineCol(patchedFiles[fileName].contents(), newOffs);
     }
 
+    void appendToLine(std::string const& fileName, int line, std::string const& text)
+    {
+        int col = 1;
+        auto it = patchedFiles.find(fileName);
+        auto contents = it != patchedFiles.end() ? it->second.contents() : readFile(fileName);
+        size_t offs = lineColToOffset(contents, line, col) - 1;
+        fmt::print("Offset {}\n", offs);
+        applyReplacement({fileName, offs, 0, text});
+    }
+
     void commit()
     {
         for (auto const& p : tempFiles) {
@@ -163,10 +173,14 @@ public:
 };
 
 Replacer replacer;
+std::set<std::string> skippedFiles;
 
 void handleError(const Error& e)
 {
     if (ignores.count(e.check) > 0 || e.fileName.empty()) {
+        return;
+    }
+    if(skippedFiles.count(e.fileName) > 0) {
         return;
     }
 
@@ -186,10 +200,10 @@ void handleError(const Error& e)
         replacer.applyReplacement(r);
     }
 
-    auto line = e.line;
-    auto column = e.column;
-    replacer.translateLineColumn(e.fileName, line, column);
-    fmt::print("{},{} => {},{}\n", e.line, e.column, line, column);
+    /* auto line = e.line; */
+    /* auto column = e.column; */
+    /* replacer.translateLineColumn(e.fileName, line, column); */
+    /* fmt::print("{},{} => {},{}\n", e.line, e.column, line, column); */
 
     auto const separator = std::string(60, '-');
 
@@ -202,8 +216,8 @@ void handleError(const Error& e)
 
     fmt::print(fmt::fg(fmt::color::cyan),
                hasPatch
-                   ? "[a]pply patch, [e]dit, [i]gnore, [s]kip, [n/N]olint ? "
-                   : "[e]dit, [i]gnore, [s]kip, [n/N]olint ? ");
+                   ? "[a]pply patch, [i]gnore, [s]kip, [n/N]olint ? "
+                   : "[t]odo marker, [i]gnore, [s]kip, [S]kip file, [n/N]olint ? ");
     std::fflush(stdout);
 
     auto c = getch();
@@ -215,24 +229,31 @@ void handleError(const Error& e)
         replacer.commit();
         break;
     case 'n':
-        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", line,
-                           e.fileName)
-                   .c_str());
+        replacer.appendToLine(e.fileName, e.line, " //NOLINT");
+        /* system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT/' {}", line, */
+        /*                    e.fileName) */
+        /*            .c_str()); */
         break;
     case 'N':
-        system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}", line,
-                           e.check, e.fileName)
-                   .c_str());
+        replacer.appendToLine(e.fileName, e.line, fmt::format(" //NOLINT({})", e.check));
+        /* system(fmt::format("sed -i \"\" '{}s/$/ \\/\\/NOLINT({})/' {}", line, */
+        /*                    e.check, e.fileName) */
+        /*            .c_str()); */
+        break;
+    case 't':
+        replacer.appendToLine(e.fileName, e.line, fmt::format(" //TODO({})", e.check));
         break;
     case 'i':
         ignores.insert(e.check);
         saveConfig();
         break;
-    case 'e':
-
-        system(fmt::format(editCommand, e.fileName, line, column).c_str());
-        break;
+    /* case 'e': */
+    /*     system(fmt::format(editCommand, e.fileName, line, column).c_str()); */
+    /*     break; */
     case 's':
+        break;
+    case 'S':
+        skippedFiles.insert(e.fileName);
         break;
     }
 
