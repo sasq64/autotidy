@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "patched_file.h"
+#include "replacer.h"
 #include "utils.h"
 
 #include <cstdio>
@@ -27,14 +28,10 @@ TEST_CASE("patched_file", "")
 
     int line = 3;
     int col = 11; // The third [l]ine
-
     auto offs = lineColToOffset(pf.contents(), line, col);
 
-
     int l0, c0;
-
     std::tie(l0, c0) = offsetToLineCol(pf.contents(), offs);
-
 
     std::cout << "OFFS: " << offs << "L" << l0 << " C" << c0 << "\n";
 
@@ -49,7 +46,7 @@ TEST_CASE("patched_file", "")
     pf.patch(lineOffsets[3], 0, "New contents for fourth line");
     pf.flush();
 
-    auto newOffs = pf.translateOffset(offs); //line, col);
+    auto newOffs = pf.translateOffset(offs); // line, col);
     std::tie(line, col) = offsetToLineCol(pf.contents(), newOffs);
 
     REQUIRE(line == 5);
@@ -61,3 +58,20 @@ TEST_CASE("patched_file", "")
         "(Almost) line one\n\n\nOur line second\nThe 3rd line\nNew contents for fourth line\nThe actual 5th line\n"s);
 }
 
+TEST_CASE("replacer", "")
+{
+    Replacer replacer;
+
+    copyFileToFrom("tempfile0.txt", "testfile.txt");
+    copyFileToFrom("tempfile1.txt", "testfile.txt");
+
+    replacer.applyReplacement({"tempfile0.txt", 70, 4, "REPLACEMENT"});
+    replacer.appendToLine("tempfile0.txt", 12, " // COMMENT");
+    replacer.applyReplacement({"tempfile0.txt", 154, 0, "NEW "});
+    replacer.applyReplacement({"tempfile0.txt", 201, 1, "RETURN_VALUE"});
+
+    replacer.applyReplacement({"tempfile1.txt", 201, 1, "RETURN_VALUE"});
+    replacer.applyReplacement({"tempfile1.txt", 154, 0, "NEW "});
+    replacer.appendToLine("tempfile1.txt", 12, " // COMMENT");
+    replacer.applyReplacement({"tempfile1.txt", 70, 4, "REPLACEMENT"});
+}

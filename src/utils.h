@@ -1,12 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
 #include <vector>
-#include <sys/stat.h>
 
 inline char getch()
 {
@@ -49,6 +50,7 @@ inline std::string currentDir()
 
 inline void copyFileToFrom(std::string const& target, std::string const& source)
 {
+    std::remove(target.c_str());
     std::ifstream src(source, std::ios::binary);
     std::ofstream dst(target, std::ios::binary);
     dst << src.rdbuf();
@@ -89,7 +91,6 @@ inline size_t lineColToOffset(std::vector<char> const& contents, int line,
     while ((it = std::find(it, contents.end(), 0xa)) != contents.end()) {
         line--;
         it++;
-
         if (line == 0)
             return std::distance(contents.begin(), it) + col;
     }
@@ -99,18 +100,13 @@ inline size_t lineColToOffset(std::vector<char> const& contents, int line,
 inline std::pair<int, int> offsetToLineCol(std::vector<char> const& contents,
                                            size_t offset)
 {
-
     auto it = contents.begin();
     auto prevIt = it;
     int line = 1;
     int64_t offs = offset;
+
     while ((it = std::find(it, contents.end(), 0xa)) != contents.end()) {
-
         it++;
-
-        // std::cout << "LINE " << (line+1) << " STARTS AT " <<
-        // std::distance(contents.begin(), it) << "\n";
-
         if (std::distance(contents.begin(), it) > offs) {
             // We have passed our offset
             return std::make_pair(
