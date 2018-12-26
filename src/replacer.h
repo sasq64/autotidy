@@ -30,51 +30,38 @@ class Replacer
 {
     std::map<std::string, PatchedFile> patchedFiles;
 
+    PatchedFile& getPatchedFile(std::string const& name) {
+        auto it = patchedFiles.find(name);
+        if(it != patchedFiles.end())
+            return it->second;
+        copyFileToFrom(name + ".orig", name);
+        return patchedFiles.emplace(name, name).first->second;
+    }
+
 public:
-    size_t offsetInOriginalFile(std::string fileName, int line, int col)
-    {
-        auto contents = readFile(fileName + ".orig");
-        return lineColToOffset(contents, line, col);
-    }
 
-    size_t offsetInFile(std::string const& fileName, int line, int col)
+    ~Replacer()
     {
-        return lineColToOffset(patchedFiles[fileName].contents(), line, col);
-    }
-
-    void translateLineColumn(std::string const& fileName, int& line,
-                             int& column)
-    {
-        if (patchedFiles.count(fileName) == 0)
-            return;
-
-        auto oldOffs = offsetInOriginalFile(fileName, line, column);
-        auto newOffs = patchedFiles[fileName].translateOffset(oldOffs);
-        std::tie(line, column) =
-            offsetToLineCol(patchedFiles[fileName].contents(), newOffs);
+        for(auto const& p : patchedFiles) {
+            std::remove((std::get<const std::string>(p) + ".orig").c_str());
+        }
     }
 
     void appendToLine(std::string const& fileName, int line,
                       std::string const& text)
     {
         int col = 1;
-        auto contents = fileExists(fileName + ".orig")
+        auto contents = patchedFiles.count(fileName) > 0
                             ? readFile(fileName + ".orig")
                             : readFile(fileName);
 
-        std::cout << std::string(contents.begin(), contents.end()) << "\n";
         size_t offs = lineColToOffset(contents, line + 1, col) - 1;
-        std::cout << "OFFS " << offs << "\n";
         applyReplacement({fileName, offs, 0, text});
     }
 
     void applyReplacement(Replacement const& r)
     {
-        auto backupName = r.path + ".orig";
-        if (!fileExists(backupName))
-            copyFileToFrom(backupName, r.path);
-        auto& pf = patchedFiles[r.path];
-        pf.setFileName(r.path);
+        auto& pf = getPatchedFile(r.path);
         pf.patch(r.offset, r.length, r.text);
         pf.flush();
     }
@@ -88,6 +75,7 @@ public:
             patchedFiles[target].setFileName(target);
         }
         copyFileToFrom(target, source);
+        copyFileToFrom(target + ".orig", source + ".orig");
     }
 
     void removeFile(std::string const& name)
@@ -95,9 +83,11 @@ public:
         auto it = patchedFiles.find(name);
         if (it != patchedFiles.end()) {
             patchedFiles.erase(it);
+            ::remove((name + ".orig").c_str());
         }
 
         ::remove(name.c_str());
+
     }
 };
 

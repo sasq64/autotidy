@@ -52,8 +52,10 @@ inline void copyFileToFrom(std::string const& target, std::string const& source)
 {
     std::remove(target.c_str());
     std::ifstream src(source, std::ios::binary);
-    std::ofstream dst(target, std::ios::binary);
-    dst << src.rdbuf();
+    if(src.is_open()) {
+        std::ofstream dst(target, std::ios::binary);
+        dst << src.rdbuf();
+    }
 }
 
 inline std::vector<char> readFile(std::string const& fileName)
@@ -116,5 +118,6 @@ inline std::pair<int, int> offsetToLineCol(std::vector<char> const& contents,
         prevIt = it;
     }
     return std::make_pair(-1, -1);
+
 }
 

@@ -24,7 +24,7 @@ class AutoTidy
         return c.count(value) > 0;
     }
 
-    void handleError(const TidyError& e);
+    bool handleError(const TidyError& e);
 
 public:
     AutoTidy(std::string const& aFilename, std::string const& aConfigFilename,

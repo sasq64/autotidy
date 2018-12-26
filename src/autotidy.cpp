@@ -43,13 +43,13 @@ bool contains(Container const& c, const T& value)
     return c.count(value) > 0;
 }
 
-void AutoTidy::handleError(const TidyError& e)
+bool AutoTidy::handleError(const TidyError& e)
 {
     if (ignores.count(e.check) > 0 || e.fileName.empty()) {
-        return;
+        return false;
     }
     if (skippedFiles.count(e.fileName) > 0) {
-        return;
+        return false;
     }
 
     auto fn = e.fileName;
@@ -64,6 +64,7 @@ void AutoTidy::handleError(const TidyError& e)
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
     std::puts(e.text.c_str());
 
+    enum { RealName, TempName };
     std::map<std::string, std::string> tempFiles;
 
     // Make copies and add temporary files
@@ -83,11 +84,11 @@ void AutoTidy::handleError(const TidyError& e)
     bool hasPatch = !tempFiles.empty();
 
     for (auto const& p : tempFiles) {
-        system(fmt::format(diffCommand, p.first, p.second).c_str());
+        system(fmt::format(diffCommand, std::get<RealName>(p), std::get<TempName>(p)).c_str());
     }
 
     fmt::print(fmt::fg(fmt::color::cyan),
-               "{}[t]odo marker, [i]gnore, [s]kip, [S]kip file, [n/N]olint ? ",
+               "{}[t]odo marker, [i]gnore, [s/S]kip (file), [n/N]olint, [q]uit ? ",
                hasPatch ? "[a]pply patch, " : "");
     std::fflush(stdout);
 
@@ -99,8 +100,8 @@ void AutoTidy::handleError(const TidyError& e)
     case 'a':
         for (auto const& f : tempFiles) {
             // Copy temporary -> real
-            replacer.copyFile(f.first, f.second);
-            replacer.removeFile(f.second);
+            replacer.copyFile(std::get<RealName>(f), std::get<TempName>(f));
+            replacer.removeFile(std::get<TempName>(f));
         }
         tempFiles.clear();
         break;
@@ -124,13 +125,17 @@ void AutoTidy::handleError(const TidyError& e)
     case 'S':
         skippedFiles.insert(e.fileName);
         break;
+    case 'q':
+        return true;
     }
 
     fmt::print(fmt::fg(fmt::color::steel_blue), separator);
     std::puts("");
     for (auto const& f : tempFiles) {
-        replacer.removeFile(f.second);
+        replacer.removeFile(std::get<TempName>(f));
     }
+
+    return false;
 }
 
 void AutoTidy::run()

@@ -12,8 +12,6 @@ set(GCC_CLANG_WARNINGS
     -Wall
     -Wextra
     -Wnon-virtual-dtor
-    -pedantic
-    -Wpedantic
     -Wcast-align)
 
 # GCC specific warnings
