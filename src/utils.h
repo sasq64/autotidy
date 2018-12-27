@@ -52,7 +52,7 @@ inline void copyFileToFrom(std::string const& target, std::string const& source)
 {
     std::remove(target.c_str());
     std::ifstream src(source, std::ios::binary);
-    if(src.is_open()) {
+    if (src.is_open()) {
         std::ofstream dst(target, std::ios::binary);
         dst << src.rdbuf();
     }
@@ -77,6 +77,12 @@ inline void writeFile(std::string const& outputFile, T const& contents)
     std::ofstream out(outputFile);
     out << contents;
     out.close();
+}
+
+template <class Container, class T>
+bool contains(Container const& c, const T& value)
+{
+    return c.count(value) > 0;
 }
 
 inline size_t lineColToOffset(std::vector<char> const& contents, int line,
@@ -118,6 +124,5 @@ inline std::pair<int, int> offsetToLineCol(std::vector<char> const& contents,
         prevIt = it;
     }
     return std::make_pair(-1, -1);
-
 }
 

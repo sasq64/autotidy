@@ -1,6 +1,7 @@
 #include "replacer.h"
-#include <string>
 #include <set>
+#include <string>
+#include <vector>
 
 struct TidyError;
 
@@ -17,12 +18,6 @@ class AutoTidy
     std::string fixesFile;
 
     void saveConfig();
-
-    template <class Container, class T>
-    bool contains(Container const& c, const T& value)
-    {
-        return c.count(value) > 0;
-    }
 
     bool handleError(const TidyError& e);
 

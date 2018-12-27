@@ -1,11 +1,7 @@
 #include "autotidy.h"
-
-#include "patched_file.h"
+#include "replacer.h"
 #include "utils.h"
 
-#include "replacer.h"
-
-//#include <absl/algorithm/container.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
@@ -16,21 +12,37 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include <algorithm>
 #include <cstdio>
 #include <regex>
 #include <set>
-#include <stdexcept>
 #include <utility>
+
+struct TidyError
+{
+    TidyError() = default;
+    TidyError(int aNumber, std::string aCheck, int aLine, int aColumn,
+              std::string aFileName, std::string aError)
+        : number(aNumber), check(std::move(aCheck)), line(aLine),
+          column(aColumn), fileName(std::move(aFileName)),
+          error(std::move(aError))
+    {}
+    int number = 0;
+    std::string check;
+    int line = 0;
+    int column = 0;
+    std::string fileName;
+    std::string error;
+    std::string text;
+    std::vector<Replacement> replacements;
+};
 
 void AutoTidy::saveConfig()
 {
     std::ofstream outf{".clang-tidy"};
     for (auto const& line : confLines) {
         if (absl::StartsWith(line, "Checks:")) {
-            outf << fmt::format(
-                "Checks: '*, -{}'\n",
-                absl::StrJoin(ignores.begin(), ignores.end(), ", -"));
+            outf << fmt::format("Checks: '*, -{}'\n",
+                                absl::StrJoin(ignores, ", -"));
         } else {
             outf << line << "\n";
         }
@@ -64,7 +76,11 @@ bool AutoTidy::handleError(const TidyError& e)
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
     std::puts(e.text.c_str());
 
-    enum { RealName, TempName };
+    enum
+    {
+        RealName,
+        TempName
+    };
     std::map<std::string, std::string> tempFiles;
 
     // Make copies and add temporary files
@@ -84,12 +100,15 @@ bool AutoTidy::handleError(const TidyError& e)
     bool hasPatch = !tempFiles.empty();
 
     for (auto const& p : tempFiles) {
-        system(fmt::format(diffCommand, std::get<RealName>(p), std::get<TempName>(p)).c_str());
+        system(fmt::format(diffCommand, std::get<RealName>(p),
+                           std::get<TempName>(p))
+                   .c_str());
     }
 
-    fmt::print(fmt::fg(fmt::color::cyan),
-               "{}[t]odo marker, [i]gnore, [s/S]kip (file), [n/N]olint, [q]uit ? ",
-               hasPatch ? "[a]pply patch, " : "");
+    fmt::print(
+        fmt::fg(fmt::color::cyan),
+        "{}[t]odo marker, [i]gnore, [s/S]kip (file), [n/N]olint, [q]uit ? ",
+        hasPatch ? "[a]pply patch, " : "");
     std::fflush(stdout);
 
     auto c = getch();
