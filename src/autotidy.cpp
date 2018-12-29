@@ -13,9 +13,12 @@
 #include <yaml-cpp/yaml.h>
 
 #include <cstdio>
+#include <map>
 #include <regex>
 #include <set>
 #include <utility>
+
+extern std::map<std::string, std::string> manPages;
 
 void AutoTidy::saveConfig()
 {
@@ -70,56 +73,69 @@ bool AutoTidy::handleError(const TidyError& e)
         replacer.applyReplacement({temp, r});
     }
 
-    bool hasPatch = !tempFiles.empty();
+    bool redo = true;
+    while (redo) {
+        redo = false;
 
-    // Show diff between patched temp files and original file
-    for (auto const& p : tempFiles) {
-        system(fmt::format(diffCommand, std::get<RealName>(p),
-                           std::get<TempName>(p))
-                   .c_str());
-    }
+        bool hasPatch = !tempFiles.empty();
 
-    fmt::print(
-        fmt::fg(fmt::color::cyan),
-        "{}[t]odo marker, [i]gnore, [s/S]kip (file), [n/N]olint, [q]uit ? ",
-        hasPatch ? "[a]pply patch, " : "");
-    std::fflush(stdout);
-    auto c = getch();
-    fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black), "[{}]",
-               static_cast<char>(c));
-    std::puts("");
-
-    switch (c) {
-    case 'a':
-        for (auto const& f : tempFiles) {
-            // Copy temporary -> real
-            replacer.copyFile(std::get<RealName>(f), std::get<TempName>(f));
-            replacer.removeFile(std::get<TempName>(f));
+        // Show diff between patched temp files and original file
+        for (auto const& p : tempFiles) {
+            system(fmt::format(diffCommand, std::get<RealName>(p),
+                               std::get<TempName>(p))
+                       .c_str());
         }
-        tempFiles.clear();
-        break;
-    case 'n':
-        replacer.appendToLine(e.fileName, e.line, " //NOLINT");
-        break;
-    case 'N':
-        replacer.appendToLine(e.fileName, e.line,
-                              fmt::format(" //NOLINT({})", e.check));
-        break;
-    case 't':
-        replacer.appendToLine(e.fileName, e.line,
-                              fmt::format(" //TODO({})", e.check));
-        break;
-    case 'i':
-        ignores.insert(e.check);
-        saveConfig();
-        break;
-    case 's':
-        break;
-    case 'S':
-        skippedFiles.insert(e.fileName);
-        break;
-    case 'q':
-        return true;
+
+        fmt::print(fmt::fg(fmt::color::cyan),
+                   "{}[t]odo, [i]gnore, [s/S]kip, [n/N]olint, [d]oc, [q]uit, "
+                   "[?] Help : ",
+                   hasPatch ? "[a]pply, " : "");
+        std::fflush(stdout);
+        auto c = getch();
+        fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black),
+                   "[{}]", static_cast<char>(c));
+        std::puts("");
+
+        switch (c) {
+        case '?':
+            std::puts(helpText.c_str());
+            redo = true;
+            break;
+        case 'a':
+            for (auto const& f : tempFiles) {
+                // Copy temporary -> real
+                replacer.copyFile(std::get<RealName>(f), std::get<TempName>(f));
+                replacer.removeFile(std::get<TempName>(f));
+            }
+            tempFiles.clear();
+            break;
+        case 'n':
+            replacer.appendToLine(e.fileName, e.line, " //NOLINT");
+            break;
+        case 'N':
+            replacer.appendToLine(e.fileName, e.line,
+                                  fmt::format(" //NOLINT({})", e.check));
+            break;
+        case 't':
+            replacer.appendToLine(e.fileName, e.line,
+                                  fmt::format(" //TODO({})", e.check));
+            break;
+        case 'i':
+            ignores.insert(e.check);
+            saveConfig();
+            break;
+        case 's':
+            break;
+        case 'S':
+            skippedFiles.insert(e.fileName);
+            break;
+        case 'q':
+            return true;
+        case 'd':
+            pipeStringToCommand("man -l -", manPages[e.check]);
+            redo = true;
+            break;
+        }
     }
 
     fmt::print(fmt::fg(fmt::color::steel_blue), separator);
@@ -252,6 +268,7 @@ void AutoTidy::run()
     readFixes();
 
     for (auto const& e : errorList) {
-        handleError(e);
+        if (handleError(e))
+            return;
     }
 }

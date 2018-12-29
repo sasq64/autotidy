@@ -1,27 +1,14 @@
 #include "autotidy.h"
+#include "path.h"
+#include "utils.h"
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
 
-#include <array>
 #include <cstdio>
 #include <string>
 
 using namespace std::string_literals;
-
-void pipeCommandToFile(std::string const& cmdLine, std::string const& outFile)
-{
-    using arr = std::array<uint8_t, 1024>;
-    auto* fp = popen(cmdLine.c_str(), "r");
-    auto* outfp = fopen(outFile.c_str(), "we");
-    arr buf;
-    while (feof(fp) == 0) {
-        auto sz = fread(buf.data(), sizeof(arr::value_type), buf.size(), fp);
-        fwrite(buf.data(), 1, sz, outfp);
-    }
-    fclose(outfp);
-    pclose(fp);
-}
 
 int main(int argc, char** argv)
 {
@@ -30,6 +17,7 @@ int main(int argc, char** argv)
     std::string fixesFile = "fixes.yaml";
     std::string filename;
     std::string sourceFile;
+    int headerLevel = 1;
     bool runClangTidy = false;
     auto clangTidy = "clang-tidy"s;
     auto diffCommand = "diff -u {0} {1}"s;
@@ -37,7 +25,8 @@ int main(int argc, char** argv)
 
     app.add_option("-l,--log", filename, "clang-tidy output file");
     app.add_option("-s,--source", sourceFile, "Source file for clang-tidy");
-    app.add_flag("-R,--run-clang-tidy", runClangTidy, "Run clang-tidy");
+    app.add_option("-H,--header-strip", headerLevel,
+                   "Header filter include level", true);
     app.add_option("-c,--clang-tidy-config", configFilename,
                    "clang-tidy config file", true);
     app.add_option("-d,--diff-command", diffCommand,
@@ -47,12 +36,29 @@ int main(int argc, char** argv)
 
     CLI11_PARSE(app, argc, argv);
 
+    if (!sourceFile.empty()) {
+        runClangTidy = true;
+    }
+
     if (runClangTidy) {
+
+        auto fullPath = utils::resolve(sourceFile);
+
+        while (headerLevel > 0) {
+            fullPath = fullPath.parent_path();
+            if (fullPath == "/") {
+                fullPath = ".*";
+                break;
+            }
+            headerLevel--;
+        }
+
         if (filename.empty()) {
             filename = "tidy.log";
         }
-        auto cmdLine = fmt::format("{} -export-fixes={} -header-filter=* {}",
-                                   clangTidy, fixesFile, sourceFile);
+        auto cmdLine =
+            fmt::format("{} -export-fixes={} -header-filter={} {}", clangTidy,
+                        fixesFile, fullPath.string(), sourceFile);
         fmt::print("Running `{}`\n", cmdLine);
         pipeCommandToFile(cmdLine, filename);
     }

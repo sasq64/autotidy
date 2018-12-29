@@ -17,13 +17,13 @@ class PatchedFile
 
 public:
     PatchedFile() = default;
-    PatchedFile(PatchedFile const&) = default;
-    PatchedFile(std::string const& fileName) : fileName_(fileName) {}
+    explicit PatchedFile(std::string const& fileName) : fileName_(fileName) {}
 
     std::vector<char> const& contents()
     {
-        if (contents_.size() == 0)
+        if (contents_.empty()) {
             contents_ = readFile(fileName_);
+        }
         return contents_;
     }
 
@@ -75,8 +75,9 @@ public:
 
     void flush() const
     {
-        if (contents_.size() == 0)
+        if (contents_.empty()) {
             return;
+        }
         writeFile(fileName_, std::string(contents_.begin(), contents_.end()));
     }
 

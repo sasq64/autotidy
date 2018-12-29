@@ -16,7 +16,7 @@ struct Replacement
     {}
 
     Replacement(std::string const& aPath, Replacement const& other)
-        : path(std::move(aPath)), offset(other.offset), length(other.length),
+        : path(aPath), offset(other.offset), length(other.length),
           text(other.text)
     {}
 
@@ -30,19 +30,19 @@ class Replacer
 {
     std::map<std::string, PatchedFile> patchedFiles;
 
-    PatchedFile& getPatchedFile(std::string const& name) {
+    PatchedFile& getPatchedFile(std::string const& name)
+    {
         auto it = patchedFiles.find(name);
-        if(it != patchedFiles.end())
+        if (it != patchedFiles.end())
             return it->second;
         copyFileToFrom(name + ".orig", name);
         return patchedFiles.emplace(name, name).first->second;
     }
 
 public:
-
     ~Replacer()
     {
-        for(auto const& p : patchedFiles) {
+        for (auto const& p : patchedFiles) {
             std::remove((std::get<const std::string>(p) + ".orig").c_str());
         }
     }
@@ -87,8 +87,6 @@ public:
         }
 
         ::remove(name.c_str());
-
     }
 };
-
 

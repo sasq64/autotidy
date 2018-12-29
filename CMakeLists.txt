@@ -41,11 +41,15 @@ add_subdirectory(external/abseil-cpp)
 add_subdirectory(external/CLI11)
 add_subdirectory(external/yaml-cpp)
 
+add_executable(makedoc src/makedoc.cpp)
+target_compile_options(makedoc PRIVATE ${WARNINGS})
+target_link_libraries(makedoc PRIVATE fmt absl::strings)
+
 add_executable(tidytest src/testmain.cpp src/patched_file.test.cpp)
 target_compile_options(tidytest PRIVATE ${WARNINGS})
 target_link_libraries(tidytest PRIVATE absl::strings absl::algorithm)
 
-add_executable(autotidy src/main.cpp src/autotidy.cpp)
+add_executable(autotidy src/main.cpp src/autotidy.cpp src/manpages.cpp)
 target_compile_options(autotidy PRIVATE ${WARNINGS})
 target_include_directories(autotidy PRIVATE external)
 target_link_libraries(autotidy PRIVATE fmt absl::strings CLI11 yaml-cpp)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -9,28 +10,50 @@
 #include <unistd.h>
 #include <vector>
 
+inline void pipeCommandToFile(std::string const& cmdLine,
+                              std::string const& outFile)
+{
+    using arr = std::array<uint8_t, 1024>;
+    auto* fp = popen(cmdLine.c_str(), "r");
+    auto* outfp = fopen(outFile.c_str(), "we");
+    arr buf;
+    while (feof(fp) == 0) {
+        auto sz = fread(buf.data(), sizeof(arr::value_type), buf.size(), fp);
+        fwrite(buf.data(), 1, sz, outfp);
+    }
+    fclose(outfp);
+    pclose(fp);
+}
+
+inline void pipeStringToCommand(std::string const& cmdLine,
+                              std::string const& text)
+{
+    auto* fp = popen(cmdLine.c_str(), "w");
+    fwrite(text.c_str(), 1, text.length(), fp);
+    pclose(fp);
+}
+
 inline char getch()
 {
     char buf = 0;
-    struct termios old
-    {};
+    termios old{};
     if (tcgetattr(0, &old) < 0) {
-        throw new std::runtime_error("tcsetattr()");
+        throw std::runtime_error("tcsetattr()");
     }
     old.c_lflag &= ~ICANON;
     old.c_lflag &= ~ECHO;
     old.c_cc[VMIN] = 1;
     old.c_cc[VTIME] = 0;
     if (tcsetattr(0, TCSANOW, &old) < 0) {
-        throw new std::runtime_error("tcsetattr ICANON");
+        throw std::runtime_error("tcsetattr ICANON");
     }
     if (read(0, &buf, 1) < 0) {
-        throw new std::runtime_error("read()");
+        throw std::runtime_error("read()");
     }
     old.c_lflag |= ICANON;
     old.c_lflag |= ECHO;
     if (tcsetattr(0, TCSADRAIN, &old) < 0) {
-        throw new std::runtime_error("tcsetattr ~ICANON");
+        throw std::runtime_error("tcsetattr ~ICANON");
     }
     return (buf);
 }

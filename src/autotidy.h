@@ -35,6 +35,18 @@ class AutoTidy
     std::string fixesFile;
     std::vector<TidyError> errorList;
 
+    std::string helpText =
+        R"([?] = This help text
+[a] = Apply the shown patch, if this issue has a Fix
+[i] = Ignore this check, add it to list of ignored checks in .clang-tidy
+[s] = Skip this issue
+[S] = Skip all issues in this file
+[n] = Add a NOLINT comment to the line where the issue appears
+[N] = As above, but only for the current check
+[d] = Show documentation on the current check
+[t] = Add a TODO comment to the line where the issue appears
+[q] = Quit autotidy)";
+
     void saveConfig();
     void readConfig();
     void readTidyLog();
