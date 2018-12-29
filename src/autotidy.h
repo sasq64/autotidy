@@ -3,7 +3,24 @@
 #include <string>
 #include <vector>
 
-struct TidyError;
+struct TidyError
+{
+    TidyError() = default;
+    TidyError(int aNumber, std::string aCheck, int aLine, int aColumn,
+              std::string aFileName, std::string aError)
+        : number(aNumber), check(std::move(aCheck)), line(aLine),
+          column(aColumn), fileName(std::move(aFileName)),
+          error(std::move(aError))
+    {}
+    int number = 0;
+    std::string check;
+    int line = 0;
+    int column = 0;
+    std::string fileName;
+    std::string error;
+    std::string text;
+    std::vector<Replacement> replacements;
+};
 
 class AutoTidy
 {
@@ -16,8 +33,12 @@ class AutoTidy
     std::string configFilename;
     std::string diffCommand;
     std::string fixesFile;
+    std::vector<TidyError> errorList;
 
     void saveConfig();
+    void readConfig();
+    void readTidyLog();
+    void readFixes();
 
     bool handleError(const TidyError& e);
 

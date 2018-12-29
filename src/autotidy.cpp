@@ -17,25 +17,6 @@
 #include <set>
 #include <utility>
 
-struct TidyError
-{
-    TidyError() = default;
-    TidyError(int aNumber, std::string aCheck, int aLine, int aColumn,
-              std::string aFileName, std::string aError)
-        : number(aNumber), check(std::move(aCheck)), line(aLine),
-          column(aColumn), fileName(std::move(aFileName)),
-          error(std::move(aError))
-    {}
-    int number = 0;
-    std::string check;
-    int line = 0;
-    int column = 0;
-    std::string fileName;
-    std::string error;
-    std::string text;
-    std::vector<Replacement> replacements;
-};
-
 void AutoTidy::saveConfig()
 {
     std::ofstream outf{".clang-tidy"};
@@ -49,14 +30,10 @@ void AutoTidy::saveConfig()
     }
 }
 
-template <class Container, class T>
-bool contains(Container const& c, const T& value)
-{
-    return c.count(value) > 0;
-}
-
 bool AutoTidy::handleError(const TidyError& e)
 {
+    static auto const separator = std::string(60, '-') + "\n"s;
+
     if (ignores.count(e.check) > 0 || e.fileName.empty()) {
         return false;
     }
@@ -64,13 +41,13 @@ bool AutoTidy::handleError(const TidyError& e)
         return false;
     }
 
-    auto fn = e.fileName;
-    if (absl::StartsWith(fn, currDir)) {
-        fn = fn.substr(currDir.length());
+    auto baseName = e.fileName;
+    if (absl::StartsWith(baseName, currDir)) {
+        baseName = baseName.substr(currDir.length());
     }
 
     fmt::print(fmt::fg(fmt::color::white), "\n#{} ", e.number);
-    fmt::print(fmt::fg(fmt::color::gold), "{}", fn);
+    fmt::print(fmt::fg(fmt::color::gold), "{}", baseName);
     fmt::print(fmt::fg(fmt::color::white), ":{}", e.line);
     fmt::print(fmt::fg(fmt::color::light_pink), " [{}]", e.check);
     fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
@@ -83,22 +60,19 @@ bool AutoTidy::handleError(const TidyError& e)
     };
     std::map<std::string, std::string> tempFiles;
 
-    // Make copies and add temporary files
+    // Make copies and add the temporary files instead
     for (auto const& r : e.replacements) {
         auto temp = e.fileName + ".temp";
         if (!contains(tempFiles, r.path)) {
             tempFiles[r.path] = temp;
-            fmt::print("Copy {} from {}\n", temp, r.path);
             replacer.copyFile(temp, r.path);
         }
-        fmt::print("Patch {}\n", temp);
         replacer.applyReplacement({temp, r});
     }
 
-    auto const separator = std::string(60, '-');
-
     bool hasPatch = !tempFiles.empty();
 
+    // Show diff between patched temp files and original file
     for (auto const& p : tempFiles) {
         system(fmt::format(diffCommand, std::get<RealName>(p),
                            std::get<TempName>(p))
@@ -110,11 +84,11 @@ bool AutoTidy::handleError(const TidyError& e)
         "{}[t]odo marker, [i]gnore, [s/S]kip (file), [n/N]olint, [q]uit ? ",
         hasPatch ? "[a]pply patch, " : "");
     std::fflush(stdout);
-
     auto c = getch();
     fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black), "[{}]",
                static_cast<char>(c));
     std::puts("");
+
     switch (c) {
     case 'a':
         for (auto const& f : tempFiles) {
@@ -149,7 +123,6 @@ bool AutoTidy::handleError(const TidyError& e)
     }
 
     fmt::print(fmt::fg(fmt::color::steel_blue), separator);
-    std::puts("");
     for (auto const& f : tempFiles) {
         replacer.removeFile(std::get<TempName>(f));
     }
@@ -157,34 +130,33 @@ bool AutoTidy::handleError(const TidyError& e)
     return false;
 }
 
-void AutoTidy::run()
+void AutoTidy::readConfig()
 {
-    currDir = currentDir();
-    if (!absl::EndsWith(currDir, "/")) {
-        currDir += "/";
-    }
-
     std::ifstream configFile(".clang-tidy");
 
     std::string line;
     while (std::getline(configFile, line)) {
-        // for (auto const& line : configFile.lines()) {
         if (absl::StartsWith(line, "Checks:")) {
-            auto q0 = line.find_first_of('\'');
-            auto q1 = line.find_last_of('\'');
-            if (q1 > q0 && q0 != std::string::npos) {
-                auto checks = line.substr(q0 + 1, q1 - q0 - 1);
-                for (absl::string_view c : absl::StrSplit(checks, ",")) {
-                    c = absl::StripLeadingAsciiWhitespace(c);
-                    if (c.front() == '-') {
-                        ignores.emplace(c.substr(1));
+            auto firstQuote = line.find_first_of('\'');
+            auto lastQuote = line.find_last_of('\'');
+            if (lastQuote > firstQuote && firstQuote != std::string::npos) {
+                auto checks =
+                    line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
+                for (absl::string_view checkName :
+                     absl::StrSplit(checks, ",")) {
+                    checkName = absl::StripLeadingAsciiWhitespace(checkName);
+                    if (checkName.front() == '-') {
+                        ignores.emplace(checkName.substr(1));
                     }
                 }
             }
         }
         confLines.push_back(line);
     }
+}
 
+void AutoTidy::readTidyLog()
+{
     enum
     {
         WholeMatch,
@@ -200,13 +172,13 @@ void AutoTidy::run()
     std::regex errline{
         R"((([^:]+):(\d+):(\d+):)?\s*(\w+):\s*(.*)\[(.*)\])"};
 
-    std::cmatch currentMatch;
     std::vector<std::string> text;
     TidyError error;
-    std::vector<TidyError> errorList;
+    int errorNo = 0;
+    std::string line;
     std::ifstream logFile(filename);
-    int no = 0;
     while (std::getline(logFile, line)) {
+        std::cmatch currentMatch;
         if (std::regex_match(line.c_str(), currentMatch, errline)) {
             if (currentMatch[Type] == "note") {
                 text.push_back(line);
@@ -219,7 +191,7 @@ void AutoTidy::run()
             }
             text.clear();
 
-            error = {no++,
+            error = {errorNo++,
                      currentMatch[Check],
                      std::atoi(currentMatch[Line].str().c_str()),
                      std::atoi(currentMatch[Column].str().c_str()),
@@ -233,14 +205,20 @@ void AutoTidy::run()
         errorList.push_back(error);
         errorList.back().text = absl::StrJoin(text, "\n");
     }
+}
 
+void AutoTidy::readFixes()
+{
     if (!fixesFile.empty()) {
         auto fixesData = readFile(fixesFile);
+
+        // Try to fix up non conformant YAML strings in fixes data
         bool inQuotes;
         for (size_t i = 0; i < fixesData.size(); i++) {
             if (fixesData[i] == '\'' && fixesData[i + 1] != '\'') {
                 inQuotes = !inQuotes;
             }
+            // If we find a line feed instide quotes, add another line feed
             if (inQuotes && fixesData[i] == 10) {
                 fixesData.insert(fixesData.begin() + i, 10);
                 i++;
@@ -249,17 +227,29 @@ void AutoTidy::run()
 
         YAML::Node fixes =
             YAML::Load(std::string(fixesData.begin(), fixesData.end()));
-        size_t i = 0;
+        size_t errorNo = 0;
         for (auto const& d : fixes["Diagnostics"]) {
             for (auto const& r : d["Replacements"]) {
-                errorList[i].replacements.emplace_back(
+                errorList[errorNo].replacements.emplace_back(
                     r["FilePath"].as<std::string>(), r["Offset"].as<int>(),
                     r["Length"].as<int>(),
                     r["ReplacementText"].as<std::string>());
             }
-            i++;
+            errorNo++;
         }
     }
+}
+
+void AutoTidy::run()
+{
+    currDir = currentDir();
+    if (!absl::EndsWith(currDir, "/")) {
+        currDir += "/";
+    }
+
+    readConfig();
+    readTidyLog();
+    readFixes();
 
     for (auto const& e : errorList) {
         handleError(e);

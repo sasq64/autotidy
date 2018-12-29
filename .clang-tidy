@@ -1,4 +1,4 @@
-Checks: '*, -cert-env33-c, -cert-err34-c, -cert-err58-cpp, -fuchsia-default-arguments'
+Checks: '*, -cert-env33-c, -cert-err34-c, -cert-err58-cpp, -cppcoreguidelines-owning-memory, -fuchsia-default-arguments'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
