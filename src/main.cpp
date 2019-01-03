@@ -17,6 +17,7 @@ int main(int argc, char** argv)
     std::string fixesFile = "fixes.yaml";
     std::string filename;
     std::string sourceFile;
+    std::string headerFilter;
     int headerLevel = 1;
     bool runClangTidy = false;
     auto clangTidy = "clang-tidy"s;
@@ -25,6 +26,8 @@ int main(int argc, char** argv)
 
     app.add_option("-l,--log", filename, "clang-tidy output file");
     app.add_option("-s,--source", sourceFile, "Source file for clang-tidy");
+    app.add_option("-F,--header-filter", headerFilter,
+                   "Header filter for clang-tidy");
     app.add_option("-H,--header-strip", headerLevel,
                    "Header filter include level", true);
     app.add_option("-c,--clang-tidy-config", configFilename,
@@ -35,6 +38,11 @@ int main(int argc, char** argv)
                    "Exported fixes from clang-tidy", true);
 
     CLI11_PARSE(app, argc, argv);
+
+    if(sourceFile.empty() && filename.empty()) {
+        std::cout << "**Error: Need either a source file or a clang-tidy log.\n";
+        return 0;
+    }
 
     if (!sourceFile.empty()) {
         runClangTidy = true;
@@ -53,12 +61,16 @@ int main(int argc, char** argv)
             headerLevel--;
         }
 
+        if(headerFilter.empty()) {
+            headerFilter = fullPath.string();
+        }
+
         if (filename.empty()) {
             filename = "tidy.log";
         }
         auto cmdLine =
             fmt::format("{} -export-fixes={} -header-filter={} {}", clangTidy,
-                        fixesFile, fullPath.string(), sourceFile);
+                        fixesFile, headerFilter, sourceFile);
         fmt::print("Running `{}`\n", cmdLine);
         pipeCommandToFile(cmdLine, filename);
     }

@@ -1,11 +1,13 @@
 # Autotidy
 
+Simplifies running clang-tidy on your code.
+
 ### Building
 
 ```
 git submodule update --init
 make
-sudo cp builds/debug/tidy /usr/local/bin/autotidy
+sudo cp builds/debug/autotidy /usr/local/bin/
 ```
 
 ### Using
@@ -15,13 +17,20 @@ clang-tidy -dump-config > .clang-tidy
 ```
 * Edit _.clang-tidy_ so that  `Checks:` are set to `'*'` (all checks enabled).
 * Make sure you have a _compile_commands.json_ for your project.
-* Assumes your sources are in _src/_
 
 ```
-clang-tidy -export-fixes=fixes.yaml src/*.cpp > tidy.log
-autotidy -f fixes.yaml tidy.log
+autotidy -s myfile.cpp 
 ```
 
-Now you can _Ignore_ checks you don't want for your project, _Apply_ fixes if there
-are any, _Edit_ the problem or add a `//NOLINT` comment.
-
+Now you get the following options for each found issue;
+```
+[a] = Apply the shown patch, if this issue has a Fix
+[i] = Ignore this check, add it to list of ignored checks in .clang-tidy
+[s] = Skip this issue
+[S] = Skip all issues in this file
+[n] = Add a NOLINT comment to the line where the issue appears
+[N] = As above, but only for the current check
+[d] = Show documentation on the current check
+[t] = Add a TODO comment to the line where the issue appears
+[q] = Quit autotidy)";
+```

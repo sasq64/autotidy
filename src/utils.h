@@ -119,7 +119,7 @@ inline size_t lineColToOffset(std::vector<char> const& contents, int line,
     auto it = contents.begin();
     col--;
     line--;
-    while ((it = std::find(it, contents.end(), 0xa)) != contents.end()) {
+    while ((it = std::find(it, contents.end(), '\n')) != contents.end()) {
         line--;
         it++;
         if (line == 0)
