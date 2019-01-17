@@ -13,6 +13,9 @@ compile_commands.json : builds/debug/compile_commands.json
 debug : builds/debug compile_commands.json
 	make -j12 -C builds/debug
 
+release : builds/release
+	make -j12 -C builds/release
+
 runtest : debug
 	builds/debug/tidytest
 
