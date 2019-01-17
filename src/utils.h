@@ -83,11 +83,14 @@ inline void copyFileToFrom(std::string const& target, std::string const& source)
 
 inline std::vector<char> readFile(std::string const& fileName)
 {
+    std::vector<char> buffer;
     std::ifstream file(fileName, std::ios::binary | std::ios::ate);
     std::streamsize size = file.tellg();
     file.seekg(0, std::ios::beg);
+    if(size <= 0)
+        return buffer;
+    buffer.resize(size);
 
-    std::vector<char> buffer(size);
     if (file.read(buffer.data(), size)) {
         return buffer;
     }

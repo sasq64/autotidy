@@ -68,6 +68,10 @@ int main(int argc, char** argv)
         if (filename.empty()) {
             filename = "tidy.log";
         }
+
+        ::remove(filename.c_str());
+        ::remove(fixesFile.c_str());
+
         auto cmdLine =
             fmt::format("{} -export-fixes={} -header-filter={} {}", clangTidy,
                         fixesFile, headerFilter, sourceFile);

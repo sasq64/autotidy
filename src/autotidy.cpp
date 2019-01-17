@@ -65,7 +65,7 @@ bool AutoTidy::handleError(const TidyError& e)
 
     // Make copies and add the temporary files instead
     for (auto const& r : e.replacements) {
-        auto temp = e.fileName + ".temp";
+        auto temp = r.path + ".temp";
         if (!contains(tempFiles, r.path)) {
             tempFiles[r.path] = temp;
             replacer.copyFile(temp, r.path);
@@ -245,6 +245,8 @@ void AutoTidy::readFixes()
             YAML::Load(std::string(fixesData.begin(), fixesData.end()));
         size_t errorNo = 0;
         for (auto const& d : fixes["Diagnostics"]) {
+            if(errorNo >= errorList.size())
+                return;
             for (auto const& r : d["Replacements"]) {
                 errorList[errorNo].replacements.emplace_back(
                     r["FilePath"].as<std::string>(), r["Offset"].as<int>(),
