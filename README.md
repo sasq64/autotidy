@@ -2,6 +2,8 @@
 
 Simplifies running clang-tidy on your code.
 
+![Screenshot](/extra/screenshot.png?raw=true "Screenshot")
+
 ### Building
 
 ```
@@ -32,5 +34,5 @@ Now you get the following options for each found issue;
 [N] = As above, but only for the current check
 [d] = Show documentation on the current check
 [t] = Add a TODO comment to the line where the issue appears
-[q] = Quit autotidy)";
+[q] = Quit autotidy
 ```
