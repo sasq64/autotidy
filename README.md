@@ -14,15 +14,14 @@ sudo cp builds/debug/autotidy /usr/local/bin/
 
 ### Using
 
-```
-clang-tidy -dump-config > .clang-tidy
-```
-* Edit _.clang-tidy_ so that  `Checks:` are set to `'*'` (all checks enabled).
-* Make sure you have a _compile_commands.json_ for your project.
+Make sure you have a _compile_commands.json_ for your project. Then;
 
 ```
 autotidy -s myfile.cpp 
 ```
+
+This will create a _.clang-tidy_ file with all checks turned on if you
+don't have one already.
 
 Now you get the following options for each found issue;
 ```

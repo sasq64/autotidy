@@ -1,3 +1,5 @@
+#pragma once
+
 #include "replacer.h"
 #include <set>
 #include <string>
@@ -47,8 +49,6 @@ class AutoTidy
 [t] = Add a TODO comment to the line where the issue appears
 [q] = Quit autotidy)";
 
-    void saveConfig();
-    void readConfig();
     void readTidyLog();
     void readFixes();
 
@@ -61,4 +61,7 @@ public:
           diffCommand(aDiffCommand), fixesFile(aFixesFile)
     {}
     void run();
+    void saveConfig();
+    void readConfig();
+    void setIgnores(std::set<std::string> const& ignores);
 };

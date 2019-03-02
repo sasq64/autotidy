@@ -14,12 +14,12 @@ int main(int argc, char** argv)
 {
     CLI::App app{"autotidy"};
 
-    std::string fixesFile = "fixes.yaml";
     std::string filename;
     std::string sourceFile;
     std::string headerFilter;
     int headerLevel = 1;
     bool runClangTidy = false;
+    auto fixesFile = "fixes.yaml"s;
     auto clangTidy = "clang-tidy"s;
     auto diffCommand = "diff -u {0} {1}"s;
     auto configFilename = ".clang-tidy"s;
@@ -39,13 +39,24 @@ int main(int argc, char** argv)
 
     CLI11_PARSE(app, argc, argv);
 
-    if(sourceFile.empty() && filename.empty()) {
-        std::cout << "**Error: Need either a source file or a clang-tidy log.\n";
+    if (sourceFile.empty() && filename.empty()) {
+        std::cout
+            << "**Error: Need either a source file or a clang-tidy log.\n";
         return 0;
     }
 
     if (!sourceFile.empty()) {
         runClangTidy = true;
+    }
+
+    // Create a .clang-tidy if none exists
+    if (!utils::exists(".clang-tidy")) {
+        AutoTidy tidy{filename, configFilename, diffCommand, fixesFile};
+        auto cmdLine = fmt::format("{} -dump-config", clangTidy);
+        pipeCommandToFile(cmdLine, ".clang-tidy");
+        tidy.readConfig();
+        tidy.setIgnores({});
+        tidy.saveConfig();
     }
 
     if (runClangTidy) {
@@ -61,7 +72,7 @@ int main(int argc, char** argv)
             headerLevel--;
         }
 
-        if(headerFilter.empty()) {
+        if (headerFilter.empty()) {
             headerFilter = fullPath.string();
         }
 

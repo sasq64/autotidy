@@ -25,8 +25,12 @@ void AutoTidy::saveConfig()
     std::ofstream outf{".clang-tidy"};
     for (auto const& line : confLines) {
         if (absl::StartsWith(line, "Checks:")) {
-            outf << fmt::format("Checks: '*, -{}'\n",
-                                absl::StrJoin(ignores, ", -"));
+            if (ignores.empty()) {
+                outf << "Checks: '*'\n";
+            } else {
+                outf << fmt::format("Checks: '*, -{}'\n",
+                                    absl::StrJoin(ignores, ", -"));
+            }
         } else {
             outf << line << "\n";
         }
@@ -245,8 +249,9 @@ void AutoTidy::readFixes()
             YAML::Load(std::string(fixesData.begin(), fixesData.end()));
         size_t errorNo = 0;
         for (auto const& d : fixes["Diagnostics"]) {
-            if(errorNo >= errorList.size())
+            if (errorNo >= errorList.size()) {
                 return;
+            }
             for (auto const& r : d["Replacements"]) {
                 errorList[errorNo].replacements.emplace_back(
                     r["FilePath"].as<std::string>(), r["Offset"].as<int>(),
@@ -256,6 +261,11 @@ void AutoTidy::readFixes()
             errorNo++;
         }
     }
+}
+
+void AutoTidy::setIgnores(std::set<std::string> const& ignores)
+{
+    this->ignores = ignores;
 }
 
 void AutoTidy::run()
@@ -270,7 +280,8 @@ void AutoTidy::run()
     readFixes();
 
     for (auto const& e : errorList) {
-        if (handleError(e))
+        if (handleError(e)) {
             return;
+        }
     }
 }
