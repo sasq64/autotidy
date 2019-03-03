@@ -192,10 +192,11 @@ public:
 
     std::string string() const
     {
+        using namespace std::string_literals;
         std::string target;
         int l = segments.size();
         int i = 0;
-        std::string separator = (format == Format::Win ? "\\" : "/");
+        std::string separator = format == Format::Win ? "\\"s : "/"s;
         if (!isRelative) {
             if (hasRootDir) {
                 target = segment(i++);
@@ -203,10 +204,7 @@ public:
             target += separator;
         }
         for (; i < l; i++) {
-            target =
-                target +
-                segment(
-                    i); // TODO(performance-inefficient-string-concatenation)
+            target += segment(i);
             if (i != l - 1) {
                 target += separator;
             }
@@ -326,7 +324,7 @@ struct directory_iterator
         return *this;
     }
 
-    directory_iterator(directory_iterator&& other) // TODO(hicpp-noexcept-move)
+    directory_iterator(directory_iterator&& other) noexcept
     {
         dir = other.dir;
         entry = other.entry;
@@ -334,7 +332,7 @@ struct directory_iterator
     }
 
     directory_iterator&
-    operator=(directory_iterator&& other) // TODO(hicpp-noexcept-move)
+    operator=(directory_iterator&& other) noexcept
     {
         dir = other.dir;
         entry = other.entry;

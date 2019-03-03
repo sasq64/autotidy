@@ -48,29 +48,26 @@ public:
         // Make sure contents is available
         (void)contents();
 
-        // offset depends on prevous patches_
-        for (auto const& p : patches_) {
-            if (p.first < offset) {
-                offset += p.second;
-            }
-        }
+        // offset depends on prevous patches
+        offset = translateOffset(offset);
 
         auto newLength = text.length();
-        auto insertPos = contents_.begin() + offset;
+        auto insertIterator = contents_.begin() + offset;
 
-        if (newLength < length) {
+        int delta = (newLength - length);
+
+        if (delta < 0) {
             // Remove some characters
-            contents_.erase(insertPos, insertPos + length - newLength);
-        } else if (newLength > length) {
+            contents_.erase(insertIterator, insertIterator - delta);
+        } else if (delta > 0) {
             // Insert some empty characters
-            contents_.insert(insertPos, newLength - length, 0);
+            contents_.insert(insertIterator, delta, 0);
         }
-        insertPos = contents_.begin() + offset;
-        auto delta = (newLength - length);
+        insertIterator = contents_.begin() + offset;
 
         patches_.emplace_back(offset, delta);
 
-        std::copy(text.begin(), text.end(), insertPos);
+        std::copy(text.begin(), text.end(), insertIterator);
     }
 
     void flush() const

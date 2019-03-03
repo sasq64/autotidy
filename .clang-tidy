@@ -1,4 +1,4 @@
-Checks: '*, -cert-env33-c, -cert-err34-c, -cert-err58-cpp, -cppcoreguidelines-owning-memory, -cppcoreguidelines-pro-bounds-array-to-pointer-decay, -fuchsia-default-arguments, -fuchsia-overloaded-operator, -llvm-header-guard, -modernize-pass-by-value, -readability-braces-around-statements'
+Checks: '*, -cert-env33-c, -cert-err34-c, -cert-err58-cpp, -cppcoreguidelines-owning-memory, -cppcoreguidelines-pro-bounds-array-to-pointer-decay, -cppcoreguidelines-special-member-functions, -fuchsia-default-arguments, -fuchsia-overloaded-operator, -hicpp-no-array-decay, -hicpp-signed-bitwise, -hicpp-special-member-functions, -llvm-header-guard, -modernize-pass-by-value, -readability-braces-around-statements'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false

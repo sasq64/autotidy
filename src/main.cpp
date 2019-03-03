@@ -84,7 +84,7 @@ int main(int argc, char** argv)
         ::remove(fixesFile.c_str());
 
         auto cmdLine =
-            fmt::format("{} -export-fixes={} -header-filter={} {}", clangTidy,
+            fmt::format("{} -export-fixes={} -header-filter='{}' {}", clangTidy,
                         fixesFile, headerFilter, sourceFile);
         fmt::print("Running `{}`\n", cmdLine);
         pipeCommandToFile(cmdLine, filename);

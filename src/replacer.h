@@ -6,7 +6,7 @@
 #include <map>
 #include <utility>
 
-using namespace std::string_literals;
+// Represent a replacement to be applied in a text file
 struct Replacement
 {
     Replacement(std::string aPath, size_t aOffset, size_t aLength,
@@ -26,6 +26,8 @@ struct Replacement
     std::string text;
 };
 
+
+// Keep track of a set of patched files
 class Replacer
 {
     std::map<std::string, PatchedFile> patchedFiles;
@@ -33,8 +35,9 @@ class Replacer
     PatchedFile& getPatchedFile(std::string const& name)
     {
         auto it = patchedFiles.find(name);
-        if (it != patchedFiles.end())
+        if (it != patchedFiles.end()) {
             return it->second;
+        }
         copyFileToFrom(name + ".orig", name);
         patchedFiles.emplace(name, PatchedFile{name});
         return patchedFiles[name];
@@ -47,6 +50,12 @@ public:
             std::remove((std::get<const std::string>(p) + ".orig").c_str());
         }
     }
+
+    Replacer() = default;
+    Replacer(Replacer const&) = delete;
+    Replacer(Replacer&&) = default;
+    Replacer& operator=(Replacer const&) = delete;
+    Replacer& operator=(Replacer&&) = default;
 
     void appendToLine(std::string const& fileName, int line,
                       std::string const& text)

@@ -26,7 +26,7 @@ inline void pipeCommandToFile(std::string const& cmdLine,
 }
 
 inline void pipeStringToCommand(std::string const& cmdLine,
-                              std::string const& text)
+                                std::string const& text)
 {
     auto* fp = popen(cmdLine.c_str(), "w");
     fwrite(text.c_str(), 1, text.length(), fp);
@@ -55,12 +55,12 @@ inline char getch()
     if (tcsetattr(0, TCSADRAIN, &old) < 0) {
         throw std::runtime_error("tcsetattr ~ICANON");
     }
-    return (buf);
+    return buf;
 }
 
 inline bool fileExists(const std::string& name)
 {
-    struct stat buffer;
+    struct stat buffer; // NOLINT
     return (stat(name.c_str(), &buffer) == 0);
 }
 
@@ -87,8 +87,9 @@ inline std::vector<char> readFile(std::string const& fileName)
     std::ifstream file(fileName, std::ios::binary | std::ios::ate);
     std::streamsize size = file.tellg();
     file.seekg(0, std::ios::beg);
-    if(size <= 0)
+    if (size <= 0) {
         return buffer;
+    }
     buffer.resize(size);
 
     if (file.read(buffer.data(), size)) {
@@ -114,10 +115,12 @@ bool contains(Container const& c, const T& value)
 inline size_t lineColToOffset(std::vector<char> const& contents, int line,
                               int col)
 {
-    if (line == 0)
+    if (line == 0) {
         return -1;
-    if (line == 1)
+    }
+    if (line == 1) {
         return col;
+    }
 
     auto it = contents.begin();
     col--;
@@ -125,8 +128,9 @@ inline size_t lineColToOffset(std::vector<char> const& contents, int line,
     while ((it = std::find(it, contents.end(), '\n')) != contents.end()) {
         line--;
         it++;
-        if (line == 0)
+        if (line == 0) {
             return std::distance(contents.begin(), it) + col;
+        }
     }
     return -1;
 }

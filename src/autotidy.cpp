@@ -18,6 +18,8 @@
 #include <set>
 #include <utility>
 
+using namespace std::string_literals;
+
 extern std::map<std::string, std::string> manPages;
 
 void AutoTidy::saveConfig()
