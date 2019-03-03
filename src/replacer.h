@@ -36,7 +36,8 @@ class Replacer
         if (it != patchedFiles.end())
             return it->second;
         copyFileToFrom(name + ".orig", name);
-        return patchedFiles.emplace(name, name).first->second;
+        patchedFiles.emplace(name, PatchedFile{name});
+        return patchedFiles[name];
     }
 
 public:
