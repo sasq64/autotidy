@@ -1,5 +1,7 @@
 #pragma once
 
+#include "path.h"
+
 #include <algorithm>
 #include <array>
 #include <fstream>
@@ -11,11 +13,11 @@
 #include <vector>
 
 inline void pipeCommandToFile(std::string const& cmdLine,
-                              std::string const& outFile)
+                              utils::path const& outFile)
 {
     using arr = std::array<uint8_t, 1024>;
     auto* fp = popen(cmdLine.c_str(), "r");
-    auto* outfp = fopen(outFile.c_str(), "we");
+    auto* outfp = fopen(outFile.string().c_str(), "we");
     arr buf;
     while (feof(fp) == 0) {
         auto sz = fread(buf.data(), sizeof(arr::value_type), buf.size(), fp);
@@ -58,12 +60,6 @@ inline char getch()
     return buf;
 }
 
-inline bool fileExists(const std::string& name)
-{
-    struct stat buffer; // NOLINT
-    return (stat(name.c_str(), &buffer) == 0);
-}
-
 inline std::string currentDir()
 {
     char buf[4096] = {0};
@@ -71,9 +67,9 @@ inline std::string currentDir()
     return std::string(&buf[0]);
 }
 
-inline void copyFileToFrom(std::string const& target, std::string const& source)
+inline void copyFileToFrom(utils::path const& target, utils::path const& source)
 {
-    std::remove(target.c_str());
+    utils::remove(target);
     std::ifstream src(source, std::ios::binary);
     if (src.is_open()) {
         std::ofstream dst(target, std::ios::binary);
@@ -81,7 +77,7 @@ inline void copyFileToFrom(std::string const& target, std::string const& source)
     }
 }
 
-inline std::vector<char> readFile(std::string const& fileName)
+inline std::vector<char> readFile(utils::path const& fileName)
 {
     std::vector<char> buffer;
     std::ifstream file(fileName, std::ios::binary | std::ios::ate);
@@ -99,7 +95,7 @@ inline std::vector<char> readFile(std::string const& fileName)
 }
 
 template <typename T>
-inline void writeFile(std::string const& outputFile, T const& contents)
+inline void writeFile(utils::path const& outputFile, T const& contents)
 {
     std::ofstream out(outputFile);
     out << contents;

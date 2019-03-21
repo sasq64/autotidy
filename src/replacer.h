@@ -9,10 +9,9 @@
 // Represent a replacement to be applied in a text file
 struct Replacement
 {
-    Replacement(std::string aPath, size_t aOffset, size_t aLength,
-                std::string aText)
-        : path(std::move(aPath)), offset(aOffset), length(aLength),
-          text(std::move(aText))
+    Replacement(std::string const& aPath, size_t aOffset, size_t aLength,
+                std::string const& aText)
+        : path(aPath), offset(aOffset), length(aLength), text(aText)
     {}
 
     Replacement(std::string const& aPath, Replacement const& other)
@@ -25,7 +24,6 @@ struct Replacement
     size_t length;
     std::string text;
 };
-
 
 // Keep track of a set of patched files
 class Replacer

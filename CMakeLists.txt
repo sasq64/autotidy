@@ -7,6 +7,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Enable ccache if available
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+endif()
+
 # GCC/Clang common warnings
 set(GCC_CLANG_WARNINGS
     -Wall
@@ -33,7 +39,8 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   set(WARNINGS ${WARNINGS} ${MSVC_WARNINGS})
 endif()
 
-# EXTERNAL
+add_library(Warnings INTERFACE)
+target_compile_options(Warnings INTERFACE ${WARNINGS})
 
 # External dependencies
 add_subdirectory(external/fmt)
@@ -42,14 +49,10 @@ add_subdirectory(external/CLI11)
 add_subdirectory(external/yaml-cpp)
 
 add_executable(makedoc src/makedoc.cpp)
-target_compile_options(makedoc PRIVATE ${WARNINGS})
-target_link_libraries(makedoc PRIVATE fmt absl::strings)
+target_link_libraries(makedoc PRIVATE Warnings fmt absl::strings)
 
 add_executable(tidytest src/testmain.cpp src/patched_file.test.cpp)
-target_compile_options(tidytest PRIVATE ${WARNINGS})
-target_link_libraries(tidytest PRIVATE absl::strings absl::algorithm)
+target_link_libraries(tidytest PRIVATE Warnings absl::strings absl::algorithm)
 
 add_executable(autotidy src/main.cpp src/autotidy.cpp src/manpages.cpp)
-target_compile_options(autotidy PRIVATE ${WARNINGS})
-target_include_directories(autotidy PRIVATE external)
-target_link_libraries(autotidy PRIVATE fmt absl::strings CLI11 yaml-cpp)
+target_link_libraries(autotidy PRIVATE Warnings fmt absl::strings CLI11 yaml-cpp)

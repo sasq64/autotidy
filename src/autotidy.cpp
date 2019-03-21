@@ -39,38 +39,99 @@ void AutoTidy::saveConfig()
     }
 }
 
-bool AutoTidy::handleError(const TidyError& e)
+void AutoTidy::printError(TidyError const& err)
 {
-    static auto const separator = std::string(60, '-') + "\n"s;
-
-    if (ignores.count(e.check) > 0 || e.fileName.empty()) {
-        return false;
-    }
-    if (skippedFiles.count(e.fileName) > 0) {
-        return false;
-    }
-
-    auto baseName = e.fileName;
+    std::string baseName = err.fileName;
     if (absl::StartsWith(baseName, currDir)) {
         baseName = baseName.substr(currDir.length());
     }
 
-    fmt::print(fmt::fg(fmt::color::white), "\n#{} ", e.number);
+    fmt::print(fmt::fg(fmt::color::white), "\n#{} ", err.number);
     fmt::print(fmt::fg(fmt::color::gold), "{}", baseName);
-    fmt::print(fmt::fg(fmt::color::white), ":{}", e.line);
-    fmt::print(fmt::fg(fmt::color::light_pink), " [{}]", e.check);
-    fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", e.error);
-    std::puts(e.text.c_str());
+    fmt::print(fmt::fg(fmt::color::white), ":{}", err.line);
+    fmt::print(fmt::fg(fmt::color::light_pink), " [{}]", err.check);
+    fmt::print(fmt::fg(fmt::color::light_green), "\n{}\n", err.error);
+    std::puts(err.text.c_str());
+}
 
-    enum
-    {
-        RealName,
-        TempName
-    };
-    std::map<std::string, std::string> tempFiles;
+char AutoTidy::askUser()
+{
+    bool hasPatch = !tempFiles.empty();
+    fmt::print(fmt::fg(fmt::color::cyan),
+               "{}[t]odo, [i]gnore, [s/S]kip, [n/N]olint, [d]oc, [q]uit, "
+               "[?] Help : ",
+               hasPatch ? "[a]pply, " : "");
+    std::fflush(stdout);
+    auto c = getch();
+    if (std::isalnum(c) == 0) {
+        c = ' ';
+    }
+    fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black), "[{}]",
+               static_cast<char>(c));
+    std::puts("");
+    return c;
+}
+
+bool AutoTidy::handleKey(char c, TidyError const& err)
+{
+    switch (c) {
+    case 'q':
+        break;
+    case '?':
+        std::puts(helpText.c_str());
+        return false;
+    case 'a':
+        for (auto const& f : tempFiles) {
+            // Copy temporary -> real
+            replacer.copyFile(std::get<RealName>(f), std::get<TempName>(f));
+            replacer.removeFile(std::get<TempName>(f));
+        }
+        tempFiles.clear();
+        break;
+    case 'n':
+        replacer.appendToLine(err.fileName, err.line, " //NOLINT");
+        break;
+    case 'N':
+        replacer.appendToLine(err.fileName, err.line,
+                              fmt::format(" //NOLINT({})", err.check));
+        break;
+    case 't':
+        replacer.appendToLine(err.fileName, err.line,
+                              fmt::format(" //TODO({})", err.check));
+        break;
+    case 'i':
+        ignores.insert(err.check);
+        saveConfig();
+        break;
+    case 's':
+        break;
+    case 'S':
+        skippedFiles.insert(err.fileName);
+        break;
+    case 'd':
+        pipeStringToCommand("man -l -", manPages[err.check]);
+        return false;
+    default:
+        return true;
+    }
+    return true;
+}
+
+bool AutoTidy::handleError(const TidyError& err)
+{
+    static auto const separatorString = std::string(60, '-') + "\n";
+
+    if (ignores.count(err.check) > 0 || err.fileName.empty()) {
+        return false;
+    }
+    if (skippedFiles.count(err.fileName) > 0) {
+        return false;
+    }
+
+    printError(err);
 
     // Make copies and add the temporary files instead
-    for (auto const& r : e.replacements) {
+    for (auto const& r : err.replacements) {
         auto temp = r.path + ".temp";
         if (!contains(tempFiles, r.path)) {
             tempFiles[r.path] = temp;
@@ -79,77 +140,28 @@ bool AutoTidy::handleError(const TidyError& e)
         replacer.applyReplacement({temp, r});
     }
 
-    bool redo = true;
-    while (redo) {
-        redo = false;
-
-        bool hasPatch = !tempFiles.empty();
-
+    bool quitProgram = false;
+    while (true) {
         // Show diff between patched temp files and original file
         for (auto const& p : tempFiles) {
-            system(fmt::format(diffCommand, std::get<RealName>(p),
+            system(fmt::format(diffCommand, std::get<RealName>(p), // NOLINT
                                std::get<TempName>(p))
                        .c_str());
         }
 
-        fmt::print(fmt::fg(fmt::color::cyan),
-                   "{}[t]odo, [i]gnore, [s/S]kip, [n/N]olint, [d]oc, [q]uit, "
-                   "[?] Help : ",
-                   hasPatch ? "[a]pply, " : "");
-        std::fflush(stdout);
-        auto c = getch();
-        fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black),
-                   "[{}]", static_cast<char>(c));
-        std::puts("");
-
-        switch (c) {
-        case '?':
-            std::puts(helpText.c_str());
-            redo = true;
-            break;
-        case 'a':
-            for (auto const& f : tempFiles) {
-                // Copy temporary -> real
-                replacer.copyFile(std::get<RealName>(f), std::get<TempName>(f));
-                replacer.removeFile(std::get<TempName>(f));
-            }
-            tempFiles.clear();
-            break;
-        case 'n':
-            replacer.appendToLine(e.fileName, e.line, " //NOLINT");
-            break;
-        case 'N':
-            replacer.appendToLine(e.fileName, e.line,
-                                  fmt::format(" //NOLINT({})", e.check));
-            break;
-        case 't':
-            replacer.appendToLine(e.fileName, e.line,
-                                  fmt::format(" //TODO({})", e.check));
-            break;
-        case 'i':
-            ignores.insert(e.check);
-            saveConfig();
-            break;
-        case 's':
-            break;
-        case 'S':
-            skippedFiles.insert(e.fileName);
-            break;
-        case 'q':
-            return true;
-        case 'd':
-            pipeStringToCommand("man -l -", manPages[e.check]);
-            redo = true;
+        char c = askUser();
+        quitProgram = (c == 'q');
+        if (handleKey(c, err)) {
             break;
         }
     }
 
-    fmt::print(fmt::fg(fmt::color::steel_blue), separator);
+    fmt::print(fmt::fg(fmt::color::steel_blue), separatorString);
     for (auto const& f : tempFiles) {
         replacer.removeFile(std::get<TempName>(f));
     }
 
-    return false;
+    return quitProgram;
 }
 
 void AutoTidy::readConfig()
@@ -217,7 +229,7 @@ void AutoTidy::readTidyLog()
                      currentMatch[Check],
                      std::atoi(currentMatch[Line].str().c_str()),
                      std::atoi(currentMatch[Column].str().c_str()),
-                     currentMatch[Filename],
+                     utils::path{currentMatch[Filename]},
                      currentMatch[Message]};
         } else {
             text.push_back(line);
@@ -240,7 +252,7 @@ void AutoTidy::readFixes()
             if (fixesData[i] == '\'' && fixesData[i + 1] != '\'') {
                 inQuotes = !inQuotes;
             }
-            // If we find a line feed instide quotes, add another line feed
+            // If we find a line feed inside quotes, add another line feed
             if (inQuotes && fixesData[i] == 10) {
                 fixesData.insert(fixesData.begin() + i, 10);
                 i++;
