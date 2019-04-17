@@ -54,7 +54,7 @@ public:
         auto newLength = text.length();
         auto insertIterator = contents_.begin() + offset;
 
-        int delta = (newLength - length);
+        int delta = static_cast<int>(newLength) - length;
 
         if (delta < 0) {
             // Remove some characters

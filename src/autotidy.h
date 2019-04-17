@@ -60,7 +60,7 @@ class AutoTidy
     void readTidyLog();
     void readFixes();
 
-    char askUser();
+    char promptUser();
     bool handleKey(char c, TidyError const& err);
     void printError(TidyError const& err);
     bool handleError(TidyError const& err);

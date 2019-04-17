@@ -1,5 +1,5 @@
 ---
-Checks: '*, -cert-env33-c, -cert-err34-c, -clang-diagnostic-unknown-warning-option, -cppcoreguidelines-owning-memory, -cppcoreguidelines-pro-bounds-array-to-pointer-decay, -fuchsia-default-arguments, -fuchsia-overloaded-operator, -hicpp-no-array-decay, -hicpp-signed-bitwise, -llvm-header-guard, -modernize-pass-by-value'
+Checks: '*, -bugprone-exception-escape, -cert-env33-c, -cert-err34-c, -clang-diagnostic-unknown-warning-option, -cppcoreguidelines-narrowing-conversions, -cppcoreguidelines-owning-memory, -cppcoreguidelines-pro-bounds-array-to-pointer-decay, -fuchsia-default-arguments, -fuchsia-overloaded-operator, -hicpp-no-array-decay, -hicpp-signed-bitwise, -llvm-header-guard, -misc-non-private-member-variables-in-classes, -modernize-pass-by-value, -readability-magic-numbers'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false

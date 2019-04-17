@@ -12,6 +12,15 @@
 #include <unistd.h>
 #include <vector>
 
+using namespace std::string_literals;
+
+struct io_exception : public std::exception
+{
+    io_exception(std::string const& msg) : message(msg) {}
+    const char* what() const noexcept override { return message.c_str(); }
+    std::string message;
+};
+
 inline void pipeCommandToFile(std::string const& cmdLine,
                               utils::path const& outFile)
 {
@@ -60,11 +69,11 @@ inline char getch()
     return buf;
 }
 
-inline std::string currentDir()
+inline utils::path currentDir()
 {
     char buf[4096] = {0};
     getcwd(&buf[0], sizeof(buf));
-    return std::string(&buf[0]);
+    return utils::path(std::string(&buf[0]));
 }
 
 inline void copyFileToFrom(utils::path const& target, utils::path const& source)
@@ -73,24 +82,27 @@ inline void copyFileToFrom(utils::path const& target, utils::path const& source)
     std::ifstream src(source, std::ios::binary);
     if (src.is_open()) {
         std::ofstream dst(target, std::ios::binary);
+        if (!dst.is_open())
+            throw io_exception("Could not write: "s + target.string());
         dst << src.rdbuf();
+        return;
     }
+    throw io_exception("Could not read: "s + source.string());
 }
 
 inline std::vector<char> readFile(utils::path const& fileName)
 {
     std::vector<char> buffer;
-    std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+    std::ifstream file(fileName,
+                       std::ios::binary | std::ios::in | std::ios::ate);
     std::streamsize size = file.tellg();
     file.seekg(0, std::ios::beg);
     if (size <= 0) {
-        return buffer;
+        throw io_exception("Could not load "s + fileName.string());
     }
     buffer.resize(size);
 
-    if (file.read(buffer.data(), size)) {
-        return buffer;
-    }
+    file.read(buffer.data(), size);
     return buffer;
 }
 

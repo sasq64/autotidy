@@ -280,7 +280,7 @@ struct directory_entry
     utils::path parent;
     struct dirent* ent = nullptr;
 
-    const utils::path path() const { return parent / ent->d_name; }
+    utils::path path() const { return parent / ent->d_name; }
 
     operator class path() { return parent / ent->d_name; } // NOLINT
 };

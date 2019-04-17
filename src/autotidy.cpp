@@ -54,7 +54,7 @@ void AutoTidy::printError(TidyError const& err)
     std::puts(err.text.c_str());
 }
 
-char AutoTidy::askUser()
+char AutoTidy::promptUser()
 {
     bool hasPatch = !tempFiles.empty();
     fmt::print(fmt::fg(fmt::color::cyan),
@@ -63,7 +63,7 @@ char AutoTidy::askUser()
                hasPatch ? "[a]pply, " : "");
     std::fflush(stdout);
     auto c = getch();
-    if (std::isalnum(c) == 0) {
+    if (c < 0x20 || c >= 0x7f) {
         c = ' ';
     }
     fmt::print(fmt::bg(fmt::color::white) | fmt::fg(fmt::color::black), "[{}]",
@@ -78,6 +78,7 @@ bool AutoTidy::handleKey(char c, TidyError const& err)
     case 'q':
         break;
     case '?':
+    case 'h':
         std::puts(helpText.c_str());
         return false;
     case 'a':
@@ -112,7 +113,7 @@ bool AutoTidy::handleKey(char c, TidyError const& err)
         pipeStringToCommand("man -l -", manPages[err.check]);
         return false;
     default:
-        return true;
+        return false;
     }
     return true;
 }
@@ -129,14 +130,19 @@ bool AutoTidy::handleError(const TidyError& err)
     }
 
     printError(err);
+    tempFiles.clear();
 
-    // Make copies and add the temporary files instead
+    // Make copies of the files in the error and work on the copies instead.
+    // Then we apply fixes to the copies an use 'diff' to show the changes.
     for (auto const& r : err.replacements) {
         auto temp = r.path + ".temp";
         if (!contains(tempFiles, r.path)) {
             tempFiles[r.path] = temp;
+            // We copy via the replacer since it needs to keep
+            // track of all files with possible replacements
             replacer.copyFile(temp, r.path);
         }
+        // Patch the temporary file
         replacer.applyReplacement({temp, r});
     }
 
@@ -149,7 +155,7 @@ bool AutoTidy::handleError(const TidyError& err)
                        .c_str());
         }
 
-        char c = askUser();
+        char c = promptUser();
         quitProgram = (c == 'q');
         if (handleKey(c, err)) {
             break;
@@ -176,11 +182,11 @@ void AutoTidy::readConfig()
             if (lastQuote > firstQuote && firstQuote != std::string::npos) {
                 auto checks =
                     line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
-                for (absl::string_view checkName :
-                     absl::StrSplit(checks, ",")) {
-                    checkName = absl::StripLeadingAsciiWhitespace(checkName);
-                    if (checkName.front() == '-') {
-                        ignores.emplace(checkName.substr(1));
+                for (const auto& checkName : absl::StrSplit(checks, ",")) {
+                    auto strippedName =
+                        absl::StripLeadingAsciiWhitespace(checkName);
+                    if (strippedName.front() == '-') {
+                        ignores.emplace(strippedName.substr(1));
                     }
                 }
             }
@@ -203,8 +209,7 @@ void AutoTidy::readTidyLog()
         Check
     };
 
-    std::regex errline{
-        R"((([^:]+):(\d+):(\d+):)?\s*(\w+):\s*(.*)\[(.*)\])"};
+    std::regex errline{R"((([^:]+):(\d+):(\d+):)?\s*(\w+):\s*(.*)\[(.*)\])"};
 
     std::vector<std::string> text;
     TidyError error;

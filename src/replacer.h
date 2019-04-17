@@ -36,6 +36,8 @@ class Replacer
         if (it != patchedFiles.end()) {
             return it->second;
         }
+        // If this is the first time we reference this file,
+        // make a copy
         copyFileToFrom(name + ".orig", name);
         patchedFiles.emplace(name, PatchedFile{name});
         return patchedFiles[name];
@@ -67,6 +69,8 @@ public:
         applyReplacement({fileName, offs, 0, text});
     }
 
+    // Patch the file, and remember the file and the replacement
+    // for subsequent patches
     void applyReplacement(Replacement const& r)
     {
         auto& pf = getPatchedFile(r.path);
@@ -74,6 +78,8 @@ public:
         pf.flush();
     }
 
+    // Copy a file, and also copy any replacement data if this file
+    // is already known by the replacer
     void copyFile(std::string const& target, std::string const& source)
     {
         auto it = patchedFiles.find(source);
@@ -81,9 +87,9 @@ public:
         if (it != patchedFiles.end()) {
             patchedFiles[target] = it->second;
             patchedFiles[target].setFileName(target);
+            copyFileToFrom(target + ".orig", source + ".orig");
         }
         copyFileToFrom(target, source);
-        copyFileToFrom(target + ".orig", source + ".orig");
     }
 
     void removeFile(std::string const& name)
