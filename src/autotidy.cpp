@@ -248,7 +248,7 @@ void AutoTidy::readTidyLog()
 
 void AutoTidy::readFixes()
 {
-    if (!fixesFile.empty()) {
+    if (!fixesFile.empty() && utils::exists(fixesFile)) {
         auto fixesData = readFile(fixesFile);
 
         // Try to fix up non conformant YAML strings in fixes data
