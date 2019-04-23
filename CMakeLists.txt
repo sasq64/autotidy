@@ -52,6 +52,9 @@ set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Enable contrib stuff in library")
 set(YAML_CPP_INSTALL OFF CACHE BOOL "Enable generation of install target")
 add_subdirectory(external/yaml-cpp)
 
+add_executable(testcode src/testcode.cpp)
+target_link_libraries(testcode PRIVATE Warnings fmt)
+
 add_executable(makedoc src/makedoc.cpp)
 target_link_libraries(makedoc PRIVATE Warnings fmt absl::strings)
 
