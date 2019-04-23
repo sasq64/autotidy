@@ -60,12 +60,11 @@ public:
     void appendToLine(std::string const& fileName, int line,
                       std::string const& text)
     {
-        int col = 1;
         auto contents = patchedFiles.count(fileName) > 0
                             ? readFile(fileName + ".orig")
                             : readFile(fileName);
 
-        size_t offs = lineColToOffset(contents, line + 1, col) - 1;
+        size_t offs = lineColToOffset(contents, line + 1, 1) - 1;
         applyReplacement({fileName, offs, 0, text});
     }
 
