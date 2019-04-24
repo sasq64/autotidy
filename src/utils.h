@@ -16,7 +16,7 @@ using namespace std::string_literals;
 
 struct io_exception : public std::exception
 {
-    io_exception(std::string const& msg) : message(msg) {}
+    explicit io_exception(std::string const& msg) : message(msg) {}
     const char* what() const noexcept override { return message.c_str(); }
     std::string message;
 };
@@ -82,8 +82,9 @@ inline void copyFileToFrom(utils::path const& target, utils::path const& source)
     std::ifstream src(source, std::ios::binary);
     if (src.is_open()) {
         std::ofstream dst(target, std::ios::binary);
-        if (!dst.is_open())
+        if (!dst.is_open()) {
             throw io_exception("Could not write: "s + target.string());
+        }
         dst << src.rdbuf();
         return;
     }

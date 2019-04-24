@@ -62,7 +62,6 @@ class path
                 start = ++i;
             }
         }
-        // if (start < name.length())
         segments.push_back(name.substr(start));
     }
 
@@ -331,8 +330,7 @@ struct directory_iterator
         other.dir = nullptr;
     }
 
-    directory_iterator&
-    operator=(directory_iterator&& other) noexcept
+    directory_iterator& operator=(directory_iterator&& other) noexcept
     {
         dir = other.dir;
         entry = other.entry;

@@ -12,7 +12,7 @@
 class PatchedFile
 {
     std::string fileName_;
-    std::vector<std::pair<size_t, int>> patches_;
+    std::vector<std::pair<size_t, size_t>> patches_;
     std::vector<char> contents_;
 
 public:
@@ -54,7 +54,7 @@ public:
         auto newLength = text.length();
         auto insertIterator = contents_.begin() + offset;
 
-        int delta = static_cast<int>(newLength) - length;
+        int64_t delta = static_cast<int64_t>(newLength) - length;
 
         if (delta < 0) {
             // Remove some characters

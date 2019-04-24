@@ -182,7 +182,7 @@ void AutoTidy::readConfig()
             if (lastQuote > firstQuote && firstQuote != std::string::npos) {
                 auto checks =
                     line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
-                for (const auto& checkName : absl::StrSplit(checks, ",")) {
+                for (const auto& checkName : absl::StrSplit(checks, ',')) {
                     auto strippedName =
                         absl::StripLeadingAsciiWhitespace(checkName);
                     if (strippedName.front() == '-') {
@@ -252,7 +252,7 @@ void AutoTidy::readFixes()
         auto fixesData = readFile(fixesFile);
 
         // Try to fix up non conformant YAML strings in fixes data
-        bool inQuotes;
+        bool inQuotes = false;
         for (size_t i = 0; i < fixesData.size(); i++) {
             if (fixesData[i] == '\'' && fixesData[i + 1] != '\'') {
                 inQuotes = !inQuotes;
