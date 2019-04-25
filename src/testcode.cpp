@@ -1,4 +1,6 @@
+#include <absl/strings/str_split.h>
 #include <fmt/format.h>
+
 #include <vector>
 
 struct Vector
@@ -34,6 +36,11 @@ int main()
     if (doSomething(12345))
         fmt::print("Was negative\n");
     int x = 9 << doSomething(4);
-    fmt::print("Hello {}\n", x);
-    return 0;
+    std::string text = "hello;people;";
+    std::vector<std::string> result;
+    for (const auto& piece : absl::StrSplit(text, ";")) {
+        result.emplace_back(piece);
+    }
+    fmt::print("Hello {}\n", result.at(1));
+    return x;
 }

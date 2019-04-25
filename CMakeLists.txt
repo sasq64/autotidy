@@ -53,7 +53,7 @@ set(YAML_CPP_INSTALL OFF CACHE BOOL "Enable generation of install target")
 add_subdirectory(external/yaml-cpp)
 
 add_executable(testcode src/testcode.cpp)
-target_link_libraries(testcode PRIVATE Warnings fmt)
+target_link_libraries(testcode PRIVATE Warnings fmt absl::strings)
 
 add_executable(makedoc src/makedoc.cpp)
 target_link_libraries(makedoc PRIVATE Warnings fmt absl::strings)
