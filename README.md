@@ -4,6 +4,9 @@ Simplifies running clang-tidy on your code.
 
 ![Screenshot](/extra/screenshot.png?raw=true "Screenshot")
 
+[![YOUTUBE LINK](http://img.youtube.com/vi/ezDIzTiBS_4/0.jpg)](http://www.youtube.com/watch?v=ezDIzTiBS_4)
+
+
 ### Building
 
 ```
