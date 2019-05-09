@@ -9,10 +9,22 @@ Simplifies running clang-tidy on your code.
 
 ### Building
 
+#### Build with Makefile
+
 ```
-git submodule update --init
+git clone --recursive https://github.com/sasq64/autotidy.git
+cd autotidy
 make
 sudo cp builds/debug/autotidy /usr/local/bin/
+```
+
+#### Build with CMake
+
+```
+git clone --recursive https://github.com/sasq64/autotidy.git
+cmake -E make_directory build
+cmake -S autotidy -B build
+cmake --build build
 ```
 
 ### Using
