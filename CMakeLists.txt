@@ -54,12 +54,16 @@ add_subdirectory(external/yaml-cpp)
 
 add_executable(testcode src/testcode.cpp)
 target_link_libraries(testcode PRIVATE Warnings fmt absl::strings)
+target_compile_features(testcode PRIVATE cxx_std_14)
 
 add_executable(makedoc src/makedoc.cpp)
 target_link_libraries(makedoc PRIVATE Warnings fmt absl::strings)
+target_compile_features(makedoc PRIVATE cxx_std_14)
 
 add_executable(tidytest src/testmain.cpp src/patched_file.test.cpp)
 target_link_libraries(tidytest PRIVATE Warnings absl::strings absl::algorithm)
+target_compile_features(tidytest PRIVATE cxx_std_14)
 
 add_executable(autotidy src/main.cpp src/autotidy.cpp src/manpages.cpp)
 target_link_libraries(autotidy PRIVATE Warnings fmt absl::strings CLI11 yaml-cpp)
+target_compile_features(autotidy PRIVATE cxx_std_14)
